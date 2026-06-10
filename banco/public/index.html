@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tree Bank — Homebanking</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="shell">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="logo">
+            Tree Bank
+            <span>homebanking</span>
+        </div>
+
+        <nav class="nav-section">
+            <div class="nav-label">General</div>
+            <button class="nav-item active" data-page="clientes" onclick="goTo(this, 'clientes')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                Clientes
+            </button>
+            <button class="nav-item" data-page="nuevo" onclick="goTo(this, 'nuevo')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                Nuevo cliente
+            </button>
+            <button class="nav-item" data-page="transferir" onclick="goTo(this, 'transferir')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01"/></svg>
+                Transferencias
+            </button>
+            <button class="nav-item" data-page="movimientos" onclick="goTo(this, 'movimientos')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Movimientos
+            </button>
+        </nav>
+
+        <div class="sidebar-footer">
+            API: <span class="accent">localhost:3001</span>
+        </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+
+        <!-- ── CLIENTES ───────────────────────────────────────── -->
+        <section id="page-clientes" class="page active">
+            <div class="page-header">
+                <h1>Clientes registrados</h1>
+                <p>Todas las personas y sus cuentas activas en el banco.</p>
+            </div>
+
+            <div class="stat-row">
+                <div class="stat">
+                    <div class="stat-label">Total clientes</div>
+                    <div class="stat-val" id="stat-clientes">—</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Cuentas activas</div>
+                    <div class="stat-val" id="stat-cuentas">—</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Saldo total</div>
+                    <div class="stat-val" id="stat-saldo">— <span>ARS</span></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>DNI</th>
+                                <th>CBU</th>
+                                <th>Alias</th>
+                                <th>Tipo</th>
+                                <th>Saldo</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-clientes">
+                            <tr><td colspan="7" class="td-loading">Cargando clientes...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── NUEVO CLIENTE ──────────────────────────────────── -->
+        <section id="page-nuevo" class="page">
+            <div class="page-header">
+                <h1>Registrar nuevo cliente</h1>
+                <p>Se registra en el Banco Central y se le asigna CBU y alias automáticamente.</p>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Datos personales</div>
+                <div class="form-row triple">
+                    <div class="field">
+                        <label for="nc-nombre">Nombre *</label>
+                        <input type="text" id="nc-nombre" placeholder="Juan" oninput="actualizarAlias()">
+                    </div>
+                    <div class="field">
+                        <label for="nc-apellido">Apellido *</label>
+                        <input type="text" id="nc-apellido" placeholder="Pérez" oninput="actualizarAlias()">
+                    </div>
+                    <div class="field">
+                        <label for="nc-dni">DNI *</label>
+                        <input type="text" id="nc-dni" placeholder="35123456" maxlength="8">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="field">
+                        <label for="nc-email">Email</label>
+                        <input type="email" id="nc-email" placeholder="juan.perez@email.com">
+                    </div>
+                    <div class="field">
+                        <label for="nc-tel">Teléfono</label>
+                        <input type="text" id="nc-tel" placeholder="351 555 0100">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Cuenta bancaria</div>
+                <div class="form-row single">
+                    <div class="field">
+                        <label>Alias generado automáticamente</label>
+                        <div class="alias-preview" id="alias-preview">
+                            <span class="alias-hint">Completá nombre y apellido para ver el alias...</span>
+                        </div>
+                        <div class="field-hint">Formato: NOMBRE.APELLIDO.SUFIJO — se agrega número si ya existe</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn btn-ghost" onclick="limpiarForm()">Limpiar</button>
+                <button class="btn btn-primary" id="btn-crear" onclick="crearCliente()">Registrar cliente</button>
+            </div>
+        </section>
+
+        <!-- ── TRANSFERENCIAS ─────────────────────────────────── -->
+        <section id="page-transferir" class="page">
+            <div class="page-header">
+                <h1>Nueva transferencia</h1>
+                <p>El Banco Central valida y autoriza cada movimiento.</p>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Origen</div>
+                <div class="form-row">
+                    <div class="field">
+                        <label for="tr-origen">CBU de origen *</label>
+                        <input type="text" id="tr-origen" placeholder="22 dígitos" maxlength="22" oninput="buscarCuentaLocal(this.value, 'info-origen')">
+                        <div class="field-info" id="info-origen"></div>
+                    </div>
+                    <div class="field">
+                        <label for="tr-monto">Monto (ARS) *</label>
+                        <input type="number" id="tr-monto" placeholder="0.00" min="1" step="0.01">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Destino</div>
+                <div class="form-row single">
+                    <div class="field">
+                        <label for="tr-destino">CBU de destino *</label>
+                        <input type="text" id="tr-destino" placeholder="22 dígitos" maxlength="22">
+                    </div>
+                </div>
+                <div class="form-row single">
+                    <div class="field">
+                        <label for="tr-desc">Descripción (opcional)</label>
+                        <input type="text" id="tr-desc" placeholder="Pago alquiler, cuota, etc.">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn btn-primary" onclick="realizarTransferencia()">Confirmar transferencia</button>
+            </div>
+
+            <div class="result-box" id="tr-result"></div>
+        </section>
+
+        <!-- ── MOVIMIENTOS ────────────────────────────────────── -->
+        <section id="page-movimientos" class="page">
+            <div class="page-header">
+                <h1>Historial de movimientos</h1>
+                <p>Ingresá el ID de cuenta para ver sus transacciones.</p>
+            </div>
+
+            <div class="card">
+                <div class="form-row" style="align-items:flex-end;gap:12px">
+                    <div class="field">
+                        <label for="mov-id">ID de cuenta</label>
+                        <input type="number" id="mov-id" placeholder="1" min="1">
+                    </div>
+                    <button class="btn btn-primary" onclick="cargarMovimientos()" style="margin-bottom:0;height:42px">Ver historial</button>
+                </div>
+            </div>
+
+            <div class="card" id="mov-tabla" style="display:none">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Tipo</th>
+                                <th>Monto</th>
+                                <th>Descripción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-movimientos"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<!-- Toast de notificaciones -->
+<div class="toast" id="toast"></div>
+
+<script src="java.js"></script>
+</body>
+</html>

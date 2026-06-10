@@ -1,0 +1,291 @@
+const axios = require('axios');
+const Persona = require('../models/personaModel');
+const db = require('../config/db');
+
+const headers = () => ({
+    'x-api-key': process.env.CENTRAL_BANK_API_KEY,
+    'x-environment': process.env.X_ENVIRONMENT
+});
+
+// Helpers de validacion
+const validarEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const validarDni = (dni) => /^\d{7,8}$/.test(String(dni));
+const validarMonto = (monto) => {
+    const n = parseFloat(monto);
+    return !isNaN(n) && n > 0;
+};
+
+// POST /api/personas - Registra una persona en el Banco Central y en la BD local
+exports.crearPersona = async (req, res) => {
+    const { nombre, apellido, dni } = req.body;
+
+    if (!nombre || !apellido || !dni) {
+        return res.status(400).json({ error: 'Los campos nombre, apellido y dni son requeridos' });
+    }
+    if (!validarDni(dni)) {
+        return res.status(400).json({ error: 'El DNI debe contener entre 7 y 8 digitos numericos' });
+    }
+    if (nombre.trim().length < 2) {
+        return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres' });
+    }
+
+    try {
+        const respuestaCentral = await axios.post(`${process.env.CENTRAL_BANK_URL}/persons`, {
+            nombre, apellido, dni
+        }, { headers: headers() });
+
+        const { cbu, alias } = respuestaCentral.data;
+
+        if (respuestaCentral.status === 200) {
+            const cuentaExistente = await Persona.getByCbu(cbu);
+            if (cuentaExistente) {
+                return res.status(200).json({
+                    mensaje: 'La persona ya estaba registrada. Datos sincronizados.',
+                    cbu, alias, datos: cuentaExistente
+                });
+            }
+            const nuevaCuenta = await Persona.createConCuenta({ nombre, apellido, dni, cbu, alias });
+            return res.status(200).json({
+                mensaje: 'Persona recuperada del Banco Central y sincronizada en BD local.',
+                cbu, alias, datos: nuevaCuenta
+            });
+        }
+
+        const nuevaCuenta = await Persona.createConCuenta({ nombre, apellido, dni, cbu, alias });
+        res.status(201).json({
+            mensaje: 'Cliente y cuenta registrados con exito',
+            cbu, alias, datos: nuevaCuenta
+        });
+
+    } catch (error) {
+        const detalle = error.response ? error.response.data : error.message;
+        res.status(500).json({ error: 'No se pudo completar el registro', detalle });
+    }
+};
+
+// GET /api/personas/:cbu/buscar - Busca una persona por CBU en el Banco Central
+exports.buscarPorCbu = async (req, res) => {
+    const { cbu } = req.params;
+    try {
+        const respuesta = await axios.get(`${process.env.CENTRAL_BANK_URL}/persons/${cbu}`, {
+            headers: headers()
+        });
+        res.json(respuesta.data);
+    } catch (error) {
+        const detalle = error.response ? error.response.data : error.message;
+        const status = error.response?.status || 500;
+        res.status(status).json({ error: 'No se encontro la persona', detalle });
+    }
+};
+
+// PUT /api/personas/:cbu/alias - Asigna o cambia el alias
+exports.asignarAlias = async (req, res) => {
+    const { cbu } = req.params;
+    const { alias } = req.body;
+    if (!alias || alias.trim().length < 3) {
+        return res.status(400).json({ error: 'El alias debe tener al menos 3 caracteres' });
+    }
+    try {
+        await axios.put(`${process.env.CENTRAL_BANK_URL}/persons/${cbu}/alias`, { alias }, {
+            headers: headers()
+        });
+        await Persona.actualizarAlias(cbu, alias);
+        res.json({ mensaje: 'Alias actualizado correctamente', cbu, alias });
+    } catch (error) {
+        const detalle = error.response ? error.response.data : error.message;
+        const status = error.response?.status || 500;
+        res.status(status).json({ error: 'No se pudo actualizar el alias', detalle });
+    }
+};
+
+// GET /api/personas/alias/:alias - Busca una persona por alias
+exports.buscarPorAlias = async (req, res) => {
+    const { alias } = req.params;
+    try {
+        const respuesta = await axios.get(`${process.env.CENTRAL_BANK_URL}/persons/alias/${alias}`, {
+            headers: headers()
+        });
+        res.json(respuesta.data);
+    } catch (error) {
+        const detalle = error.response ? error.response.data : error.message;
+        const status = error.response?.status || 500;
+        res.status(status).json({ error: 'No se encontro el alias', detalle });
+    }
+};
+
+// POST /api/transferencias - Realiza una transferencia a traves del Banco Central
+exports.realizarTransferencia = async (req, res) => {
+    const { cbu_origen, cbu_destino, monto, descripcion } = req.body;
+
+    if (!cbu_origen || !cbu_destino || !monto) {
+        return res.status(400).json({ error: 'Los campos cbu_origen, cbu_destino y monto son requeridos' });
+    }
+    if (!validarMonto(monto)) {
+        return res.status(400).json({ error: 'El monto debe ser un numero positivo mayor a 0' });
+    }
+    if (cbu_origen === cbu_destino) {
+        return res.status(400).json({ error: 'El CBU de origen y destino no pueden ser iguales' });
+    }
+
+    try {
+        const cuentaOrigen = await Persona.getByCbu(cbu_origen);
+        if (!cuentaOrigen) {
+            return res.status(404).json({ error: 'El CBU de origen no pertenece a este banco' });
+        }
+
+        // Autorizar: solo el dueno de la cuenta puede transferir desde ella
+        const productoRes = await db.query(
+            'SELECT p.id_persona FROM productos p WHERE p.id_producto = $1',
+            [cuentaOrigen.id_producto]
+        );
+        if (productoRes.rows.length === 0 || productoRes.rows[0].id_persona !== req.usuario.id) {
+            return res.status(403).json({ error: 'No tenes permiso para operar con esta cuenta' });
+        }
+
+        if (parseFloat(cuentaOrigen.saldo) < parseFloat(monto)) {
+            return res.status(400).json({ error: 'Saldo insuficiente para realizar la transferencia' });
+        }
+
+        const respuestaCentral = await axios.post(`${process.env.CENTRAL_BANK_URL}/transactions`, {
+            cbuOrigen: cbu_origen,
+            cbuDestino: cbu_destino,
+            importe: monto,
+            saldoOrigen: cuentaOrigen.saldo
+        }, { headers: headers() });
+
+        if (respuestaCentral.status === 201) {
+            await Persona.descontarSaldo(cbu_origen, monto);
+            await Persona.registrarMovimiento({
+                id_cuenta: cuentaOrigen.id_cuenta,
+                tipo_movimiento: 'TRANSFERENCIA_EGRESO',
+                monto,
+                descripcion: descripcion || 'Transferencia enviada'
+            });
+
+            const cuentaDestino = await Persona.getByCbu(cbu_destino);
+            if (cuentaDestino) {
+                await Persona.acreditarSaldo(cbu_destino, monto);
+                await Persona.registrarMovimiento({
+                    id_cuenta: cuentaDestino.id_cuenta,
+                    tipo_movimiento: 'TRANSFERENCIA_INGRESO',
+                    monto,
+                    descripcion: descripcion || 'Transferencia recibida'
+                });
+            }
+
+            res.status(201).json({
+                mensaje: 'Transferencia realizada con exito',
+                ticket: respuestaCentral.data
+            });
+        }
+    } catch (error) {
+        const detalle = error.response ? error.response.data : error.message;
+        const status = error.response?.status || 400;
+        res.status(status).json({ error: 'La transferencia fue rechazada', motivo: detalle });
+    }
+};
+
+// POST /api/depositos - Registra un deposito en efectivo en la propia cuenta
+exports.realizarDeposito = async (req, res) => {
+    const { cbu, monto, descripcion } = req.body;
+
+    if (!cbu || !monto) {
+        return res.status(400).json({ error: 'Los campos cbu y monto son requeridos' });
+    }
+    if (!validarMonto(monto)) {
+        return res.status(400).json({ error: 'El monto debe ser un numero positivo mayor a 0' });
+    }
+
+    try {
+        const cuenta = await Persona.getByCbu(cbu);
+        if (!cuenta) {
+            return res.status(404).json({ error: 'No se encontro ninguna cuenta con ese CBU' });
+        }
+
+        // Autorizar: solo el dueno de la cuenta puede depositar en ella
+        const productoRes = await db.query(
+            'SELECT p.id_persona FROM productos p WHERE p.id_producto = $1',
+            [cuenta.id_producto]
+        );
+        if (productoRes.rows.length === 0 || productoRes.rows[0].id_persona !== req.usuario.id) {
+            return res.status(403).json({ error: 'No tenes permiso para operar con esta cuenta' });
+        }
+
+        const montoNum = parseFloat(monto);
+        await Persona.acreditarSaldo(cbu, montoNum);
+        await Persona.registrarMovimiento({
+            id_cuenta: cuenta.id_cuenta,
+            tipo_movimiento: 'DEPOSITO',
+            monto: montoNum,
+            descripcion: descripcion || 'Deposito en efectivo'
+        });
+
+        const saldoNuevo = parseFloat(cuenta.saldo) + montoNum;
+
+        res.status(201).json({
+            mensaje: 'Deposito realizado con exito',
+            cbu,
+            monto: montoNum,
+            saldo_actualizado: saldoNuevo
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Error al procesar el deposito', detalle: error.message });
+    }
+};
+
+// GET /api/movimientos/:idCuenta - Historial de movimientos (solo el dueno)
+exports.obtenerMovimientos = async (req, res) => {
+    try {
+        const { idCuenta } = req.params;
+
+        // Verificar que la cuenta pertenece al usuario autenticado
+        const cuentaRes = await db.query(
+            `SELECT cb.id_cuenta FROM cuentas_bancarias cb
+             JOIN productos p ON cb.id_producto = p.id_producto
+             WHERE cb.id_cuenta = $1 AND p.id_persona = $2`,
+            [idCuenta, req.usuario.id]
+        );
+        if (cuentaRes.rows.length === 0) {
+            return res.status(403).json({ error: 'No tenes permiso para ver estos movimientos' });
+        }
+
+        const movimientos = await Persona.getMovimientos(idCuenta);
+        res.json(movimientos);
+    } catch (error) {
+        res.status(500).json({ error: 'Error al obtener historial', detalle: error.message });
+    }
+};
+
+// GET /api/personas - Lista todas las personas
+exports.obtenerPersonas = async (req, res) => {
+    try {
+        const personas = await Persona.getAll();
+        res.json(personas);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// GET /api/personas/:id/roles
+exports.obtenerRoles = async (req, res) => {
+    try {
+        const roles = await Persona.getRoles(req.params.id);
+        res.json(roles);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// GET /api/personas/:id/productos (solo el propio usuario)
+exports.obtenerProductos = async (req, res) => {
+    try {
+        const idSolicitado = parseInt(req.params.id);
+        if (idSolicitado !== req.usuario.id) {
+            return res.status(403).json({ error: 'No tenes permiso para ver los productos de otro usuario' });
+        }
+        const productos = await Persona.getProductos(idSolicitado);
+        res.json(productos);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
