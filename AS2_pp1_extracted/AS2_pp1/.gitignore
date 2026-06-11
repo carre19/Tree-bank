@@ -1,0 +1,18 @@
+node_modules/
+.env
+package-lock.json.bak
+
+# Archivos de frontend React que no pertenecen al backend
+src/
+vite.config.js
+eslint.config.js
+index.html
+
+# Archivos duplicados
+controllers/tablaControllers.js
+models/tablaModels.js
+
+# Sistema
+.DS_Store
+*.log
+.claude/

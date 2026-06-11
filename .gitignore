@@ -1,0 +1,34 @@
+# ── Dependencias y builds ──
+node_modules/
+dist/
+
+# ── Claves y secretos: NUNCA suben a GitHub ──
+**/.env
+
+# ── Sistema ──
+*.log
+.DS_Store
+Thumbs.db
+**/.claude/
+**/.git-old/
+
+# ── Archivos sueltos de la carpeta que no son parte del proyecto ──
+AS2_pp1.zip
+banco/
+/package-lock.json
+
+# ── Duplicados internos del backend (quedan en el disco, no en el repo) ──
+AS2_pp1_extracted/AS2_pp1/AS2_pp1_extracted/
+AS2_pp1_extracted/AS2_pp1/AS2_pp1.zip
+AS2_pp1_extracted/AS2_pp1/homebanking-front/
+AS2_pp1_extracted/AS2_pp1/src/
+AS2_pp1_extracted/AS2_pp1/index.html
+AS2_pp1_extracted/AS2_pp1/vite.config.js
+AS2_pp1_extracted/AS2_pp1/eslint.config.js
+AS2_pp1_extracted/AS2_pp1/package-lock.json.bak
+AS2_pp1_extracted/AS2_pp1/controllers/tablaControllers.js
+AS2_pp1_extracted/AS2_pp1/models/tablaModels.js
+
+# Respaldos de repos viejos (no subir)
+.git-old-root/
+.git-corrupto-borrar/
