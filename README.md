@@ -32,6 +32,28 @@ npm run dev            # http://localhost:5173
 > ⚠️ El archivo `.env` con las credenciales reales **no se sube al repositorio**.
 > Usar `.env.example` como plantilla.
 
+## Roles
+
+El sistema tiene dos tipos de usuario, guardados en las tablas `Roles` / `Roles_x_Personas`:
+
+- **Cliente** (por defecto): opera su propia cuenta (transferencias, depósitos, historial, perfil).
+- **ADMIN**: no opera cuentas propias, entra directo a un panel (`/admin`) donde ve **todas** las
+  cuentas del banco y puede:
+  - **Bloquear / reactivar / cerrar** (estado reversible): una cuenta bloqueada o cerrada no
+    puede transferir ni depositar hasta que un admin la reactive.
+  - **Eliminar para siempre** (`DELETE /api/admin/cuentas/:idProducto`, irreversible): borra la
+    cuenta y todo su historial de movimientos. Solo funciona si el saldo es $0 y la persona no
+    tiene tarjetas de crédito activas (préstamos pendientes); si no, el backend rechaza el pedido
+    con el motivo.
+
+El rol se calcula en el login (`POST /api/auth/login`) y viaja dentro del JWT, así el backend no
+necesita consultar la base de datos en cada pedido protegido (`middleware/authMiddleware.js` →
+`verificarAdmin`).
+
+Para habilitar el panel en una base de datos ya existente, correr una vez
+`AS2_pp1_extracted/AS2_pp1/init/04_admin_role.sql` en el SQL Editor de Supabase, reemplazando el
+DNI de ejemplo por el de la persona que va a administrar el banco.
+
 ## Funcionalidades principales
 
 - Apertura de cuenta con CBU y alias asignados por el Banco Central

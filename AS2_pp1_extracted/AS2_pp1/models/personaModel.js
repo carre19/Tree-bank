@@ -18,10 +18,15 @@ const Persona = {
   },
 
   // Busca una cuenta bancaria por su CBU
-  // Devuelve la cuenta completa (id_cuenta, saldo, alias, etc.) o undefined si no existe
+  // Devuelve la cuenta completa (id_cuenta, saldo, alias, etc.) junto con el dueno
+  // (id_persona) y el estado del producto (ACTIVO/BLOQUEADO/CERRADO), o undefined si no existe
   getByCbu: async (cbu) => {
     const { rows } = await db.query(
-      'SELECT * FROM cuentas_bancarias WHERE cbu = $1',
+      `SELECT cb.*, ep.nombre AS estado, p.id_persona
+       FROM cuentas_bancarias cb
+       JOIN productos p ON cb.id_producto = p.id_producto
+       JOIN estados_producto ep ON p.id_estado_producto = ep.id_estado_producto
+       WHERE cb.cbu = $1`,
       [cbu]
     );
     return rows[0]; // rows[0] = primer resultado, o undefined si no hay ninguno
@@ -98,6 +103,20 @@ const Persona = {
         [id_producto, cbu, alias || null]
       );
 
+      // 4. Asignar el rol CLIENTE por defecto (lo crea si todavia no existe en la tabla Roles)
+      await client.query(
+        `INSERT INTO roles (nombre_rol, descripcion)
+         SELECT 'CLIENTE', 'Cliente del banco: opera su propia cuenta'
+         WHERE NOT EXISTS (SELECT 1 FROM roles WHERE nombre_rol = 'CLIENTE')`
+      );
+      const resRolCliente = await client.query(
+        "SELECT id_rol FROM roles WHERE nombre_rol = 'CLIENTE'"
+      );
+      await client.query(
+        'INSERT INTO roles_x_personas (id_persona, id_rol) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [id_persona, resRolCliente.rows[0].id_rol]
+      );
+
       await client.query('COMMIT'); // Si todo salió bien → confirmar los cambios
       return { id_persona, ...resCuenta.rows[0] };
 
@@ -135,6 +154,88 @@ const Persona = {
       [id_cuenta]
     );
     return rows;
+  },
+
+  // Devuelve todas las cuentas bancarias del banco con los datos del dueno
+  // Se usa en el panel de administrador para listar y gestionar cuentas
+  getAllCuentasAdmin: async () => {
+    const { rows } = await db.query(
+      `SELECT cb.id_cuenta, cb.cbu, cb.alias, cb.saldo, cb.moneda,
+              pr.id_producto, tp.nombre AS tipo,
+              ep.nombre AS estado, ep.id_estado_producto,
+              per.id AS id_persona, per.nombre, per.apellido, per.dni
+       FROM cuentas_bancarias cb
+       JOIN productos pr ON cb.id_producto = pr.id_producto
+       JOIN tipos_producto tp ON pr.id_tipo_producto = tp.id_tipo_producto
+       JOIN estados_producto ep ON pr.id_estado_producto = ep.id_estado_producto
+       JOIN personas per ON pr.id_persona = per.id
+       ORDER BY per.apellido, per.nombre`
+    );
+    return rows;
+  },
+
+  // Cambia el estado de un producto (cuenta): ACTIVO, BLOQUEADO o CERRADO
+  // Usado por el administrador para bloquear/reactivar/cerrar una cuenta
+  cambiarEstadoCuenta: async (id_producto, nombreEstado) => {
+    const { rows } = await db.query(
+      `UPDATE productos SET id_estado_producto = (
+         SELECT id_estado_producto FROM estados_producto WHERE nombre = $1
+       ) WHERE id_producto = $2 RETURNING id_producto`,
+      [nombreEstado, id_producto]
+    );
+    return rows[0];
+  },
+
+  // Trae los datos necesarios para decidir si una cuenta se puede eliminar para siempre:
+  // el saldo actual y si el dueno tiene alguna tarjeta de credito activa (prestamo pendiente)
+  getCuentaParaCierre: async (id_producto) => {
+    const { rows } = await db.query(
+      `SELECT cb.id_cuenta, pr.id_producto, pr.id_persona, cb.saldo,
+              EXISTS (
+                SELECT 1 FROM productos pr2
+                JOIN tipos_producto tp2 ON pr2.id_tipo_producto = tp2.id_tipo_producto
+                JOIN estados_producto ep2 ON pr2.id_estado_producto = ep2.id_estado_producto
+                WHERE pr2.id_persona = pr.id_persona
+                  AND tp2.nombre = 'TARJETA_CREDITO'
+                  AND ep2.nombre <> 'CERRADO'
+              ) AS tiene_prestamo_pendiente
+       FROM productos pr
+       JOIN cuentas_bancarias cb ON cb.id_producto = pr.id_producto
+       WHERE pr.id_producto = $1`,
+      [id_producto]
+    );
+    return rows[0];
+  },
+
+  // Elimina para siempre una cuenta: sus movimientos, la cuenta bancaria y el producto.
+  // La persona sigue existiendo (puede tener otros productos o abrir otra cuenta despues)
+  eliminarCuentaDefinitivo: async (id_producto) => {
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      const cuentaRes = await client.query(
+        'SELECT id_cuenta FROM cuentas_bancarias WHERE id_producto = $1',
+        [id_producto]
+      );
+      if (cuentaRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return false;
+      }
+      const id_cuenta = cuentaRes.rows[0].id_cuenta;
+
+      await client.query('DELETE FROM movimientos WHERE id_cuenta = $1', [id_cuenta]);
+      await client.query('DELETE FROM cuentas_bancarias WHERE id_cuenta = $1', [id_cuenta]);
+      await client.query('DELETE FROM productos WHERE id_producto = $1', [id_producto]);
+
+      await client.query('COMMIT');
+      return true;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 
 };

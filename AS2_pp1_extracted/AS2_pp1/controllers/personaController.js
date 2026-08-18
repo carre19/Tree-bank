@@ -167,12 +167,13 @@ exports.realizarTransferencia = async (req, res) => {
         // AUTORIZACIÓN: verificamos que la cuenta le pertenece al usuario logueado
         // req.usuario.id viene del token JWT (lo puso el middleware verificarToken)
         // Si alguien intenta transferir desde la cuenta de otro → 403 Forbidden
-        const productoRes = await db.query(
-            'SELECT p.id_persona FROM productos p WHERE p.id_producto = $1',
-            [cuentaOrigen.id_producto]
-        );
-        if (productoRes.rows.length === 0 || productoRes.rows[0].id_persona !== req.usuario.id) {
+        if (cuentaOrigen.id_persona !== req.usuario.id) {
             return res.status(403).json({ error: 'No tenes permiso para operar con esta cuenta' });
+        }
+
+        // Si el administrador bloqueo o cerro la cuenta, no puede operar
+        if (cuentaOrigen.estado !== 'ACTIVO') {
+            return res.status(403).json({ error: `La cuenta esta ${cuentaOrigen.estado.toLowerCase()} y no puede operar. Contacta al banco.` });
         }
 
         // Verificación de saldo suficiente antes de llamar al Banco Central
@@ -258,12 +259,13 @@ exports.realizarDeposito = async (req, res) => {
         }
 
         // Autorizar: solo el dueno de la cuenta puede depositar en ella
-        const productoRes = await db.query(
-            'SELECT p.id_persona FROM productos p WHERE p.id_producto = $1',
-            [cuenta.id_producto]
-        );
-        if (productoRes.rows.length === 0 || productoRes.rows[0].id_persona !== req.usuario.id) {
+        if (cuenta.id_persona !== req.usuario.id) {
             return res.status(403).json({ error: 'No tenes permiso para operar con esta cuenta' });
+        }
+
+        // Si el administrador bloqueo o cerro la cuenta, no puede operar
+        if (cuenta.estado !== 'ACTIVO') {
+            return res.status(403).json({ error: `La cuenta esta ${cuenta.estado.toLowerCase()} y no puede operar. Contacta al banco.` });
         }
 
         const montoNum = parseFloat(monto);

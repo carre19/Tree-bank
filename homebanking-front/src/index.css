@@ -668,8 +668,9 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.tx-badge.in  { background: #e3f8ee; color: var(--jade); }
-.tx-badge.out { background: #fdeeee; color: #b91c1c; }
+.tx-badge.in   { background: #e3f8ee; color: var(--jade); }
+.tx-badge.out  { background: #fdeeee; color: #b91c1c; }
+.tx-badge.warn { background: var(--warn-bg); color: var(--warn); }
 
 /* Stats */
 .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 24px; }

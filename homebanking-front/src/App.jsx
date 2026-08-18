@@ -9,30 +9,45 @@ import TransferenciasPage from './pages/TransferenciasPage';
 import HistorialPage from './pages/HistorialPage';
 import DepositosPage from './pages/DepositosPage';
 import PerfilPage from './pages/PerfilPage';
+import AdminPage from './pages/AdminPage';
 
-// Ruta protegida: si no esta logueado, manda al login
+function Cargando() {
+  return (
+    <div className="loading-center" style={{ minHeight: '100vh', justifyContent: 'center' }}>
+      <div className="spinner" />
+      Cargando…
+    </div>
+  );
+}
+
+// Ruta protegida: si no esta logueado, manda al login.
+// Los administradores no operan cuentas propias, asi que van directo al panel admin.
 function RutaPrivada({ children }) {
   const { usuario, cargando } = useAuth();
-  if (cargando) {
-    return (
-      <div className="loading-center" style={{ minHeight: '100vh', justifyContent: 'center' }}>
-        <div className="spinner" />
-        Cargando…
-      </div>
-    );
-  }
-  return usuario ? children : <Navigate to="/login" />;
+  if (cargando) return <Cargando />;
+  if (!usuario) return <Navigate to="/login" />;
+  if (usuario.esAdmin) return <Navigate to="/admin" />;
+  return children;
+}
+
+// Ruta exclusiva del panel de administrador
+function RutaAdmin({ children }) {
+  const { usuario, cargando } = useAuth();
+  if (cargando) return <Cargando />;
+  if (!usuario) return <Navigate to="/login" />;
+  return usuario.esAdmin ? children : <Navigate to="/dashboard" />;
 }
 
 function AppRoutes() {
   const { usuario, splash, setSplash } = useAuth();
+  const inicio = usuario ? (usuario.esAdmin ? '/admin' : '/dashboard') : '/login';
   return (
     <>
       {/* Splash de bienvenida al ingresar */}
       {splash && <SplashScreen nombre={usuario?.nombre} onFin={() => setSplash(false)} />}
 
       <Routes>
-        <Route path="/" element={<Navigate to={usuario ? '/dashboard' : '/login'} />} />
+        <Route path="/" element={<Navigate to={inicio} />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/abrir-cuenta" element={<AbrirCuentaPage />} />
@@ -41,6 +56,7 @@ function AppRoutes() {
         <Route path="/historial" element={<RutaPrivada><HistorialPage /></RutaPrivada>} />
         <Route path="/depositos" element={<RutaPrivada><DepositosPage /></RutaPrivada>} />
         <Route path="/perfil" element={<RutaPrivada><PerfilPage /></RutaPrivada>} />
+        <Route path="/admin" element={<RutaAdmin><AdminPage /></RutaAdmin>} />
       </Routes>
     </>
   );

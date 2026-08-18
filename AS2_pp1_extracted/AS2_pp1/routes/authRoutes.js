@@ -13,7 +13,7 @@ const authController = require('../controllers/authController');
 
 // Importamos el middleware que verifica el token JWT
 // Las rutas marcadas con verificarToken solo funcionan si el usuario está logueado
-const verificarToken = require('../middleware/authMiddleware');
+const { verificarToken } = require('../middleware/authMiddleware');
 
 // POST /api/auth/register - Crea una contrasena para una persona existente
 router.post('/auth/register', authController.register);

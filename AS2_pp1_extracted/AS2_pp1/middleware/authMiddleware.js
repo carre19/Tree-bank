@@ -50,4 +50,15 @@ const verificarToken = (req, res, next) => {
     }
 };
 
-module.exports = verificarToken;
+// verificarAdmin — se usa DESPUES de verificarToken en la cadena de middlewares
+// Solo deja pasar si el usuario logueado tiene el rol ADMIN (guardado en el token)
+// Ejemplo: router.get('/admin/cuentas', verificarToken, verificarAdmin, adminController.listar)
+const verificarAdmin = (req, res, next) => {
+    const roles = req.usuario?.roles || [];
+    if (!roles.includes('ADMIN')) {
+        return res.status(403).json({ error: 'Acceso restringido a administradores.' });
+    }
+    next();
+};
+
+module.exports = { verificarToken, verificarAdmin };

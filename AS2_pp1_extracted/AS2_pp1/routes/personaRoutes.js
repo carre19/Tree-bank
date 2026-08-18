@@ -11,7 +11,7 @@ const router = express.Router();
 const personaController = require('../controllers/personaController');
 
 // Middleware de autenticación: las rutas con verificarToken requieren login
-const verificarToken = require('../middleware/authMiddleware');
+const { verificarToken } = require('../middleware/authMiddleware');
 
 // GET /api/personas - Lista todas las personas (publico, para admin)
 router.get('/personas', personaController.obtenerPersonas);

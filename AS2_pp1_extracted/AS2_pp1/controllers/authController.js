@@ -104,13 +104,23 @@ exports.login = async (req, res) => {
             return res.status(401).json({ error: 'DNI o password incorrectos' });
         }
 
+        // Buscamos los roles de la persona (ej: ADMIN) para incluirlos en el token
+        // Asi el middleware verificarAdmin puede saber quien es administrador sin
+        // consultar la base de datos en cada pedido protegido
+        const { rows: filasRoles } = await db.query(
+            'SELECT r.nombre_rol FROM roles r JOIN roles_x_personas rp ON r.id_rol = rp.id_rol WHERE rp.id_persona = $1',
+            [persona.id]
+        );
+        const roles = filasRoles.map(r => r.nombre_rol);
+        const esAdmin = roles.includes('ADMIN');
+
         // Login exitoso → generamos el token JWT
         // jwt.sign crea un token con:
-        //   - Los datos del usuario (id, dni, nombre) → son los que después lee req.usuario
+        //   - Los datos del usuario (id, dni, nombre, roles) → son los que después lee req.usuario
         //   - La clave secreta del .env (JWT_SECRET) → sirve para firmar y verificar
         //   - Expiración de 8 horas → después hay que volver a hacer login
         const token = jwt.sign(
-            { id: persona.id, dni: persona.dni, nombre: persona.nombre },
+            { id: persona.id, dni: persona.dni, nombre: persona.nombre, roles },
             process.env.JWT_SECRET,
             { expiresIn: '8h' }
         );
@@ -124,7 +134,9 @@ exports.login = async (req, res) => {
                 id: persona.id,
                 nombre: persona.nombre,
                 apellido: persona.apellido,
-                dni: persona.dni
+                dni: persona.dni,
+                roles,
+                esAdmin
             }
         });
 
