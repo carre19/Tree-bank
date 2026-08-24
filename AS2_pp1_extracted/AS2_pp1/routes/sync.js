@@ -11,8 +11,8 @@
 const express = require('express');
 const router = express.Router();
 
-// axios para llamar a la API del Banco Central
-const axios = require('axios');
+// Cliente HTTP ya configurado con baseURL y headers (x-api-key, x-environment)
+const centralBank = require('../services/centralBankClient');
 
 // Conexión a Supabase para guardar las transacciones
 const db = require('../config/db');
@@ -22,12 +22,7 @@ const ejecutarSync = async () => {
     try {
         // Llamamos al Banco Central para obtener las transacciones de los últimos 30 minutos
         // Parámetro ?minutos=30 → solo trae las recientes (no toda la historia)
-        const response = await axios.get(`${process.env.CENTRAL_BANK_URL}/transactions?minutos=30`, {
-            headers: {
-                'x-api-key': process.env.CENTRAL_BANK_API_KEY,
-                'x-environment': process.env.X_ENVIRONMENT
-            }
-        });
+        const response = await centralBank.get('/transactions', { params: { minutos: 30 } });
 
         // response.data es el array de transacciones que devolvió el Banco Central
         const transacciones = response.data;
@@ -68,12 +63,18 @@ const ejecutarSync = async () => {
                         [tx.importe, cuenta.id_cuenta]
                     );
 
+                    // El Banco Central manda los datos del emisor en personaOrigen (nombre,
+                    // apellido, cbu, alias). Los guardamos como contraparte del movimiento
+                    // para que esta transferencia entrante tambien arme un Contacto.
+                    const emisor = tx.personaOrigen || {};
+                    const nombreEmisor = [emisor.nombre, emisor.apellido].filter(Boolean).join(' ') || null;
+
                     // Registramos el movimiento en el historial
                     // referencia_externa guarda el ID del Banco Central para evitar duplicados futuros
                     await db.query(
-                        `INSERT INTO movimientos (id_cuenta, tipo_movimiento, monto, descripcion, referencia_externa, fecha)
-                         VALUES ($1, 'TRANSFERENCIA_INGRESO', $2, $3, $4, NOW())`,
-                        [cuenta.id_cuenta, tx.importe, tx.descripcion || 'Transferencia recibida del exterior', String(tx._id)]
+                        `INSERT INTO movimientos (id_cuenta, tipo_movimiento, monto, descripcion, referencia_externa, cbu_contraparte, nombre_contraparte, fecha)
+                         VALUES ($1, 'TRANSFERENCIA_INGRESO', $2, $3, $4, $5, $6, NOW())`,
+                        [cuenta.id_cuenta, tx.importe, tx.descripcion || 'Transferencia recibida del exterior', String(tx._id), tx.cbuOrigen || null, nombreEmisor]
                     );
 
                     sincronizadas++;

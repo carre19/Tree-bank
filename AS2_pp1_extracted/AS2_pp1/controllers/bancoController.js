@@ -5,23 +5,13 @@
 // NO tiene lógica propia, solo redirige los pedidos a la API externa.
 // ============================================================
 
-// axios es el cliente HTTP para hacer pedidos a la API del Banco Central
-const axios = require('axios');
-
-// headers() es una función que devuelve los encabezados que requiere la API del profe
-// x-api-key: es la clave de autenticación de tu banco
-// x-environment: "test" para modo de prueba (no mueve plata real)
-const headers = () => ({
-    'x-api-key': process.env.CENTRAL_BANK_API_KEY,
-    'x-environment': process.env.X_ENVIRONMENT
-});
+// Cliente HTTP ya configurado con baseURL y headers (x-api-key, x-environment)
+const centralBank = require('../services/centralBankClient');
 
 // GET /api/bancos — Lista todos los bancos registrados en el sistema del profe
 exports.listarBancos = async (req, res) => {
     try {
-        const respuesta = await axios.get(`${process.env.CENTRAL_BANK_URL}/banks`, {
-            headers: headers()
-        });
+        const respuesta = await centralBank.get('/banks');
         res.json(respuesta.data);
     } catch (error) {
         const detalle = error.response ? error.response.data : error.message;
@@ -33,9 +23,7 @@ exports.listarBancos = async (req, res) => {
 exports.obtenerBancoPorCodigo = async (req, res) => {
     const { bankCode } = req.params;
     try {
-        const respuesta = await axios.get(`${process.env.CENTRAL_BANK_URL}/banks/${bankCode}`, {
-            headers: headers()
-        });
+        const respuesta = await centralBank.get(`/banks/${bankCode}`);
         res.json(respuesta.data);
     } catch (error) {
         const detalle = error.response ? error.response.data : error.message;
@@ -51,9 +39,7 @@ exports.cambiarNombreBanco = async (req, res) => {
         return res.status(400).json({ error: 'El campo "name" es requerido' });
     }
     try {
-        await axios.put(`${process.env.CENTRAL_BANK_URL}/banks/me`, { name }, {
-            headers: headers()
-        });
+        await centralBank.put('/banks/me', { name });
         res.json({ mensaje: `Nombre del banco actualizado a "${name}"` });
     } catch (error) {
         const detalle = error.response ? error.response.data : error.message;

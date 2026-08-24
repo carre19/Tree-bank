@@ -5,8 +5,8 @@
 // Muchas funciones hablan con el Banco Central del profe Y con Supabase.
 // ============================================================
 
-// axios para llamar a la API del Banco Central del profe
-const axios = require('axios');
+// Cliente HTTP ya configurado con baseURL y headers (x-api-key, x-environment)
+const centralBank = require('../services/centralBankClient');
 
 // Persona es el model: contiene las consultas SQL de cuentas/movimientos
 const Persona = require('../models/personaModel');
@@ -14,14 +14,6 @@ const Persona = require('../models/personaModel');
 // db se usa directamente en las validaciones de autorización
 // (verificar que la cuenta le pertenece al usuario logueado)
 const db = require('../config/db');
-
-// headers() arma los encabezados que pide la API del Banco Central
-// x-api-key: clave de autenticación del banco (viene del .env)
-// x-environment: "test" para el ambiente de pruebas (no mueve plata real)
-const headers = () => ({
-    'x-api-key': process.env.CENTRAL_BANK_API_KEY,
-    'x-environment': process.env.X_ENVIRONMENT
-});
 
 // ---- Funciones de validación ----
 // Son mini-funciones que devuelven true/false y se usan antes de procesar cualquier dato
@@ -56,9 +48,9 @@ exports.crearPersona = async (req, res) => {
     }
 
     try {
-        const respuestaCentral = await axios.post(`${process.env.CENTRAL_BANK_URL}/persons`, {
+        const respuestaCentral = await centralBank.post('/persons', {
             nombre, apellido, dni
-        }, { headers: headers() });
+        });
 
         const { cbu, alias } = respuestaCentral.data;
 
@@ -93,9 +85,7 @@ exports.crearPersona = async (req, res) => {
 exports.buscarPorCbu = async (req, res) => {
     const { cbu } = req.params;
     try {
-        const respuesta = await axios.get(`${process.env.CENTRAL_BANK_URL}/persons/${cbu}`, {
-            headers: headers()
-        });
+        const respuesta = await centralBank.get(`/persons/${cbu}`);
         res.json(respuesta.data);
     } catch (error) {
         const detalle = error.response ? error.response.data : error.message;
@@ -112,9 +102,7 @@ exports.asignarAlias = async (req, res) => {
         return res.status(400).json({ error: 'El alias debe tener al menos 3 caracteres' });
     }
     try {
-        await axios.put(`${process.env.CENTRAL_BANK_URL}/persons/${cbu}/alias`, { alias }, {
-            headers: headers()
-        });
+        await centralBank.put(`/persons/${cbu}/alias`, { alias });
         await Persona.actualizarAlias(cbu, alias);
         res.json({ mensaje: 'Alias actualizado correctamente', cbu, alias });
     } catch (error) {
@@ -128,9 +116,7 @@ exports.asignarAlias = async (req, res) => {
 exports.buscarPorAlias = async (req, res) => {
     const { alias } = req.params;
     try {
-        const respuesta = await axios.get(`${process.env.CENTRAL_BANK_URL}/persons/alias/${alias}`, {
-            headers: headers()
-        });
+        const respuesta = await centralBank.get(`/persons/alias/${alias}`);
         res.json(respuesta.data);
     } catch (error) {
         const detalle = error.response ? error.response.data : error.message;
@@ -183,21 +169,27 @@ exports.realizarTransferencia = async (req, res) => {
 
         // Llamada al Banco Central del profe para que procese la transferencia
         // Mandamos: CBU origen, CBU destino, importe, y el saldo actual del origen
-        const respuestaCentral = await axios.post(`${process.env.CENTRAL_BANK_URL}/transactions`, {
+        const respuestaCentral = await centralBank.post('/transactions', {
             cbuOrigen: cbu_origen,
             cbuDestino: cbu_destino,
             importe: monto,
             saldoOrigen: cuentaOrigen.saldo
-        }, { headers: headers() });
+        });
 
         if (respuestaCentral.status === 201) {
+            // El Banco Central nos devuelve el nombre de ambas puntas de la operacion:
+            // lo guardamos como "contraparte" del movimiento (base de la lista de Contactos)
+            const { nombreOrigen, nombreDestino } = respuestaCentral.data || {};
+
             // Transferencia APROBADA: descontar saldo y registrar movimientos
             await Persona.descontarSaldo(cbu_origen, monto);
             await Persona.registrarMovimiento({
                 id_cuenta: cuentaOrigen.id_cuenta,
                 tipo_movimiento: 'TRANSFERENCIA_EGRESO',
                 monto,
-                descripcion: descripcion || 'Transferencia enviada'
+                descripcion: descripcion || 'Transferencia enviada',
+                cbu_contraparte: cbu_destino,
+                nombre_contraparte: nombreDestino || null
             });
 
             // Si el destino tambien es de este banco, acreditar localmente
@@ -208,7 +200,9 @@ exports.realizarTransferencia = async (req, res) => {
                     id_cuenta: cuentaDestino.id_cuenta,
                     tipo_movimiento: 'TRANSFERENCIA_INGRESO',
                     monto,
-                    descripcion: descripcion || 'Transferencia recibida'
+                    descripcion: descripcion || 'Transferencia recibida',
+                    cbu_contraparte: cbu_origen,
+                    nombre_contraparte: nombreOrigen || null
                 });
             }
 
@@ -330,6 +324,22 @@ exports.obtenerRoles = async (req, res) => {
         res.json(roles);
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+};
+
+// GET /api/personas/:id/contactos (requiere token - solo el propio usuario)
+// Devuelve solo la gente con la que ya se hizo una transferencia (enviada o recibida),
+// no todos los clientes del banco.
+exports.obtenerContactos = async (req, res) => {
+    try {
+        const idSolicitado = parseInt(req.params.id);
+        if (idSolicitado !== req.usuario.id) {
+            return res.status(403).json({ error: 'No tenes permiso para ver los contactos de otro usuario' });
+        }
+        const contactos = await Persona.getContactos(idSolicitado);
+        res.json(contactos);
+    } catch (error) {
+        res.status(500).json({ error: 'Error al obtener los contactos', detalle: error.message });
     }
 };
 

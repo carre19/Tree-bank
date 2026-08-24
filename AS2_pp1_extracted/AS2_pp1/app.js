@@ -29,6 +29,10 @@ const bancoRoutes   = require('./routes/bancoRoutes');   // /api/bancos
 const authRoutes    = require('./routes/authRoutes');    // /api/auth/login, /api/auth/register, etc.
 const syncRoutes    = require('./routes/sync');          // /api/sync
 const adminRoutes   = require('./routes/adminRoutes');   // /api/admin/cuentas (solo rol ADMIN)
+const centralDeudoresRoutes = require('./routes/centralDeudoresRoutes'); // /api/central-deudores
+const cuentaRoutes  = require('./routes/cuentaRoutes');  // /api/cuentas (cajas de ahorro ARS/USD)
+const prestamoRoutes = require('./routes/prestamoRoutes'); // /api/prestamos
+const cambioRoutes   = require('./routes/cambioRoutes');   // /api/cambio (compra/venta de dolares)
 
 // tablaController se usa directamente aquí (no tiene archivo de rutas propio)
 const tablaController = require('./controllers/tablaController');
@@ -54,6 +58,10 @@ app.use('/api', personaRoutes);
 app.use('/api', bancoRoutes);
 app.use('/api', syncRoutes);
 app.use('/api', adminRoutes);
+app.use('/api', centralDeudoresRoutes);
+app.use('/api', cuentaRoutes);
+app.use('/api', prestamoRoutes);
+app.use('/api', cambioRoutes);
 
 // Esta ruta especial permite leer el contenido de cualquier tabla de Supabase
 // Ejemplo: GET /api/tablas/personas → devuelve todas las personas

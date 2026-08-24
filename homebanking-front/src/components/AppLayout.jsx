@@ -7,6 +7,8 @@ const NAV_ITEMS_CLIENTE = [
   { to: '/dashboard',      icon: 'home',    label: 'Inicio' },
   { to: '/transferencias', icon: 'send',    label: 'Transferir' },
   { to: '/depositos',      icon: 'deposit', label: 'Depositar' },
+  { to: '/cambio',         icon: 'swap',    label: 'Cambio' },
+  { to: '/prestamos',      icon: 'loan',    label: 'Préstamos' },
   { to: '/historial',      icon: 'history', label: 'Movimientos' },
   { to: '/perfil',         icon: 'user',    label: 'Mi perfil' },
 ];

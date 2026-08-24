@@ -21,11 +21,16 @@ export default function DepositosPage() {
   useEffect(() => {
     const cargarCuenta = async () => {
       try {
+        // Los depositos van siempre a la caja en ARS (si tambien hay una en USD,
+        // hace falta filtrar por moneda y no solo tomar "el primer producto")
         const productos = await api.get(`/personas/${usuario.id}/productos`);
-        if (productos.data.length === 0) return;
+        const cajasAhorro = productos.data.filter(p => p.tipo === 'CAJA_AHORRO');
+        if (cajasAhorro.length === 0) return;
 
         const cuentasRes = await api.get('/tablas/cuentas_bancarias');
-        const miCuenta = cuentasRes.data.find(c => c.id_producto === productos.data[0].id_producto);
+        const miCuenta = cuentasRes.data.find(c =>
+          cajasAhorro.some(p => p.id_producto === c.id_producto) && c.moneda === 'ARS'
+        );
         if (miCuenta) {
           setCbu(miCuenta.cbu);
           setSaldoActual(parseFloat(miCuenta.saldo));

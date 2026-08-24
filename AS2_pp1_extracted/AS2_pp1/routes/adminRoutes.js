@@ -19,4 +19,10 @@ router.put('/admin/cuentas/:idProducto/estado', verificarToken, verificarAdmin, 
 // DELETE /api/admin/cuentas/:idProducto - Elimina la cuenta para siempre (sin saldo ni prestamos pendientes)
 router.delete('/admin/cuentas/:idProducto', verificarToken, verificarAdmin, adminController.eliminarCuenta);
 
+// GET /api/admin/prestamos - Lista todos los prestamos del banco
+router.get('/admin/prestamos', verificarToken, verificarAdmin, adminController.listarPrestamos);
+
+// PUT /api/admin/prestamos/:idPrestamo/mora - Marca un prestamo en mora e informa a la Central de Deudores
+router.put('/admin/prestamos/:idPrestamo/mora', verificarToken, verificarAdmin, adminController.marcarPrestamoEnMora);
+
 module.exports = router;

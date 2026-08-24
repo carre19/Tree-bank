@@ -54,30 +54,26 @@ export default function TransferenciasPage() {
   const [enviando, setEnviando]         = useState(false);
 
   // ── Cargar cuenta propia + contactos ──
+  // Los "contactos" son solo la gente con la que ya hiciste una transferencia
+  // (enviada o recibida), no todos los clientes del banco.
   useEffect(() => {
     const cargar = async () => {
       try {
+        // Las transferencias salen siempre de la caja en ARS (si la persona tambien
+        // tiene caja en USD, esta busqueda la ignora a proposito: no alcanza con
+        // "el primer producto", hay que pedir puntualmente el que es CAJA_AHORRO + ARS)
         const productos = await api.get(`/personas/${usuario.id}/productos`);
-        let miCbu = '';
-        const cuentasRes = await api.get('/tablas/cuentas_bancarias');
-        if (productos.data.length > 0) {
-          const miCuenta = cuentasRes.data.find(c => c.id_producto === productos.data[0].id_producto);
-          if (miCuenta) { miCbu = miCuenta.cbu; setCbuOrigen(miCuenta.cbu); setSaldoActual(miCuenta.saldo); }
+        const cajasAhorro = productos.data.filter(p => p.tipo === 'CAJA_AHORRO');
+        if (cajasAhorro.length > 0) {
+          const cuentasRes = await api.get('/tablas/cuentas_bancarias');
+          const miCuenta = cuentasRes.data.find(c =>
+            cajasAhorro.some(p => p.id_producto === c.id_producto) && c.moneda === 'ARS'
+          );
+          if (miCuenta) { setCbuOrigen(miCuenta.cbu); setSaldoActual(miCuenta.saldo); }
         }
-        // Armar contactos cruzando personas + productos + cuentas
-        const [persRes, prodsRes] = await Promise.all([
-          api.get('/personas'),
-          api.get('/tablas/productos'),
-        ]);
-        const lista = persRes.data
-          .map(p => {
-            const prod = prodsRes.data.find(x => x.id_persona === p.id);
-            const cta = prod && cuentasRes.data.find(c => c.id_producto === prod.id_producto);
-            if (!cta || cta.cbu === miCbu) return null;
-            return { nombre: `${p.nombre} ${p.apellido}`, cbu: cta.cbu, alias: cta.alias };
-          })
-          .filter(Boolean);
-        setContactos(lista);
+
+        const contactosRes = await api.get(`/personas/${usuario.id}/contactos`);
+        setContactos(contactosRes.data.map(c => ({ nombre: c.nombre || c.cbu, cbu: c.cbu, alias: null })));
       } catch {
         setError('No se pudo conectar con el banco. Verificá que el backend esté corriendo.');
       } finally {
@@ -260,7 +256,13 @@ export default function TransferenciasPage() {
           {!cargandoContactos && contactosFiltrados.length === 0 && (
             <div className="empty anim-up-2">
               <div className="empty-icon"><Icon name="user" size={26} /></div>
-              <p>{chip === 'favoritos' ? 'Todavía no marcaste favoritos (tocá la estrella)' : 'No se encontraron contactos'}</p>
+              <p>
+                {chip === 'favoritos'
+                  ? 'Todavía no marcaste favoritos (tocá la estrella)'
+                  : contactos.length === 0
+                    ? 'Todavía no transferiste con nadie. Usá "A una nueva cuenta" para tu primera transferencia.'
+                    : 'No se encontraron contactos con ese nombre o alias'}
+              </p>
             </div>
           )}
 

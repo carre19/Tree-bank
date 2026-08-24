@@ -8,6 +8,8 @@ import DashboardPage from './pages/DashboardPage';
 import TransferenciasPage from './pages/TransferenciasPage';
 import HistorialPage from './pages/HistorialPage';
 import DepositosPage from './pages/DepositosPage';
+import PrestamosPage from './pages/PrestamosPage';
+import CambioPage from './pages/CambioPage';
 import PerfilPage from './pages/PerfilPage';
 import AdminPage from './pages/AdminPage';
 
@@ -55,6 +57,8 @@ function AppRoutes() {
         <Route path="/transferencias" element={<RutaPrivada><TransferenciasPage /></RutaPrivada>} />
         <Route path="/historial" element={<RutaPrivada><HistorialPage /></RutaPrivada>} />
         <Route path="/depositos" element={<RutaPrivada><DepositosPage /></RutaPrivada>} />
+        <Route path="/prestamos" element={<RutaPrivada><PrestamosPage /></RutaPrivada>} />
+        <Route path="/cambio" element={<RutaPrivada><CambioPage /></RutaPrivada>} />
         <Route path="/perfil" element={<RutaPrivada><PerfilPage /></RutaPrivada>} />
         <Route path="/admin" element={<RutaAdmin><AdminPage /></RutaAdmin>} />
       </Routes>

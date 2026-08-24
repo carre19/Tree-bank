@@ -15,7 +15,7 @@ export default function PerfilPage() {
   const [exito, setExito]         = useState('');
   const [error, setError]         = useState('');
 
-  const [form, setForm] = useState({ nombre: '', apellido: '', email: '', telefono: '', direccion: '' });
+  const [form, setForm] = useState({ nombre: '', apellido: '', email: '', telefono: '', direccion: '', sexo: '' });
 
   // Cambio de password
   const [cambioPass, setCambioPass]       = useState(false);
@@ -35,6 +35,7 @@ export default function PerfilPage() {
           email: res.data.email || '',
           telefono: res.data.telefono || '',
           direccion: res.data.direccion || '',
+          sexo: res.data.sexo || '',
         });
       } catch {
         setError('No se pudo cargar el perfil');
@@ -218,6 +219,7 @@ export default function PerfilPage() {
             <InfoRow label="Email" value={perfil?.email || 'No registrado'} />
             <InfoRow label="Teléfono" value={perfil?.telefono || 'No registrado'} />
             <InfoRow label="Dirección" value={perfil?.direccion || 'No registrada'} />
+            <InfoRow label="Sexo" value={perfil?.sexo || 'Prefiero no decir'} />
           </div>
         ) : (
           <form onSubmit={handleGuardar}>
@@ -227,7 +229,18 @@ export default function PerfilPage() {
               <CampoInput label="Email" type="email" value={form.email} onChange={v => setForm({ ...form, email: v })} placeholder="usuario@mail.com" />
               <CampoInput label="Teléfono" value={form.telefono} onChange={v => setForm({ ...form, telefono: v })} placeholder="Ej: 2944123456" />
             </div>
-            <CampoInput label="Dirección" value={form.direccion} onChange={v => setForm({ ...form, direccion: v })} placeholder="Calle, número, ciudad" />
+            <div className="form-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
+              <CampoInput label="Dirección" value={form.direccion} onChange={v => setForm({ ...form, direccion: v })} placeholder="Calle, número, ciudad" />
+              <div className="field">
+                <label className="label">Sexo</label>
+                <select className="input" value={form.sexo} onChange={(e) => setForm({ ...form, sexo: e.target.value })}>
+                  <option value="">Prefiero no decir</option>
+                  <option value="Femenino">Femenino</option>
+                  <option value="Masculino">Masculino</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </div>
+            </div>
 
             <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
               <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={() => { setEditando(false); setError(''); }}>

@@ -3,12 +3,18 @@ import AppLayout from '../components/AppLayout';
 import Icon from '../components/Icon';
 import api from '../api/api';
 
+const ESTADO_PRESTAMO_LABEL = { ACTIVO: 'Al día', CERRADO: 'Pagado', BLOQUEADO: 'En mora' };
+
 export default function AdminPage() {
   const [cuentas, setCuentas]       = useState([]);
   const [cargando, setCargando]     = useState(true);
   const [error, setError]           = useState('');
   const [busqueda, setBusqueda]     = useState('');
   const [actualizando, setActualizando] = useState(null); // id_producto en curso
+
+  const [prestamos, setPrestamos]             = useState([]);
+  const [cargandoPrestamos, setCargandoPrestamos] = useState(true);
+  const [marcandoMora, setMarcandoMora]       = useState(null); // id_prestamo en curso
 
   useEffect(() => {
     const cargar = async () => {
@@ -24,7 +30,40 @@ export default function AdminPage() {
       }
     };
     cargar();
+    cargarPrestamos();
   }, []);
+
+  const cargarPrestamos = async () => {
+    setCargandoPrestamos(true);
+    try {
+      const res = await api.get('/admin/prestamos');
+      setPrestamos(res.data);
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudieron cargar los prestamos');
+    } finally {
+      setCargandoPrestamos(false);
+    }
+  };
+
+  const marcarEnMora = async (prestamo) => {
+    if (!window.confirm(
+      `Esto marca el prestamo de ${prestamo.nombre} ${prestamo.apellido} (DNI ${prestamo.dni}) como EN MORA ` +
+      `y lo informa a la Central de Deudores por $ ${fmt(prestamo.saldo_pendiente)} (situacion 4). ¿Confirmas?`
+    )) return;
+
+    setError('');
+    setMarcandoMora(prestamo.id_prestamo);
+    try {
+      await api.put(`/admin/prestamos/${prestamo.id_prestamo}/mora`);
+      setPrestamos((prev) => prev.map((p) => (
+        p.id_prestamo === prestamo.id_prestamo ? { ...p, estado: 'BLOQUEADO' } : p
+      )));
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo marcar el prestamo en mora');
+    } finally {
+      setMarcandoMora(null);
+    }
+  };
 
   const cambiarEstado = async (cuenta, estado) => {
     const verbo = estado === 'BLOQUEADO' ? 'bloquear' : estado === 'CERRADO' ? 'cerrar' : 'reactivar';
@@ -212,6 +251,57 @@ export default function AdminPage() {
             </div>
           </div>
         ))}
+      </div>
+
+      <h3 className="section-title anim-up-3">Préstamos</h3>
+
+      {cargandoPrestamos && (
+        <div className="loading-center">
+          <div className="spinner" />
+          Cargando préstamos…
+        </div>
+      )}
+
+      {!cargandoPrestamos && prestamos.length === 0 && (
+        <div className="empty anim-up-3">
+          <div className="empty-icon"><Icon name="loan" size={26} /></div>
+          <p>Todavía no se otorgó ningún préstamo</p>
+        </div>
+      )}
+
+      <div className="anim-up-3" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {prestamos.map((p) => {
+          const badge = p.estado === 'ACTIVO' ? 'in' : p.estado === 'BLOQUEADO' ? 'warn' : 'out';
+          return (
+            <div key={p.id_prestamo} className="tx-item" style={{ flexWrap: 'wrap' }}>
+              <div className={`tx-icon ${p.estado === 'BLOQUEADO' ? 'out' : 'in'}`}>
+                <Icon name="loan" size={19} />
+              </div>
+              <div className="tx-info">
+                <p className="tx-desc">{p.nombre} {p.apellido} · DNI {p.dni}</p>
+                <p className="tx-date">
+                  {p.cuotas_pagadas}/{p.cuotas_totales} cuotas · saldo $ {fmt(p.saldo_pendiente)}
+                </p>
+              </div>
+              <div className="tx-right">
+                <p className="tx-amount" style={{ color: 'var(--text)' }}>$ {fmt(p.monto)}</p>
+                <span className={`tx-badge ${badge}`}>{ESTADO_PRESTAMO_LABEL[p.estado] || p.estado}</span>
+              </div>
+              {p.estado === 'ACTIVO' && (
+                <div style={{ display: 'flex', gap: 8, width: '100%', justifyContent: 'flex-end', marginTop: 10 }}>
+                  <button
+                    className="btn-ghost"
+                    style={{ color: 'var(--red)' }}
+                    disabled={marcandoMora === p.id_prestamo}
+                    onClick={() => marcarEnMora(p)}
+                  >
+                    {marcandoMora === p.id_prestamo ? 'Informando…' : 'Marcar en mora'}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </AppLayout>
   );

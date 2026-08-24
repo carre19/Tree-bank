@@ -32,6 +32,69 @@ const Persona = {
     return rows[0]; // rows[0] = primer resultado, o undefined si no hay ninguno
   },
 
+  // Busca la cuenta en ARS de una persona a partir de su id (no de su CBU).
+  // Se usa para acreditar/descontar prestamos: sabemos QUIEN pidio el prestamo (por el token JWT)
+  // pero necesitamos SU cuenta para mover la plata.
+  getCuentaArsPorPersona: async (id_persona) => {
+    const { rows } = await db.query(
+      `SELECT cb.*, per.dni, per.nombre, per.apellido
+       FROM cuentas_bancarias cb
+       JOIN productos p ON cb.id_producto = p.id_producto
+       JOIN personas per ON p.id_persona = per.id
+       WHERE per.id = $1 AND cb.moneda = 'ARS'
+       LIMIT 1`,
+      [id_persona]
+    );
+    return rows[0];
+  },
+
+  // Busca una persona local por DNI (usado para sincronizar altas de cuentas en moneda extranjera)
+  getPersonaByDni: async (dni) => {
+    const { rows } = await db.query('SELECT id FROM personas WHERE dni = $1', [dni]);
+    return rows[0];
+  },
+
+  // Busca la cuenta bancaria local de una persona en una moneda especifica (ARS, USD, etc.)
+  getCuentaPorPersonaYMoneda: async (id_persona, moneda) => {
+    const { rows } = await db.query(
+      `SELECT cb.* FROM cuentas_bancarias cb
+       JOIN productos p ON cb.id_producto = p.id_producto
+       WHERE p.id_persona = $1 AND cb.moneda = $2`,
+      [id_persona, moneda]
+    );
+    return rows[0];
+  },
+
+  // Crea un producto + cuenta bancaria nuevos para una persona ya existente, en la moneda indicada.
+  // Se usa para abrir cajas en monedas distintas de ARS: la caja en ARS ya se crea junto con la
+  // persona (ver createConCuenta), asi que esta cuenta es siempre una adicional sobre la misma persona.
+  crearCuentaEnMoneda: async ({ id_persona, moneda, cbu, alias }) => {
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Nuevo producto tipo CAJA_AHORRO (id 1) y estado ACTIVO (id 1), igual que createConCuenta
+      const resProducto = await client.query(
+        'INSERT INTO productos (id_persona, id_tipo_producto, id_estado_producto) VALUES ($1, 1, 1) RETURNING id_producto',
+        [id_persona]
+      );
+      const id_producto = resProducto.rows[0].id_producto;
+
+      const resCuenta = await client.query(
+        'INSERT INTO cuentas_bancarias (id_producto, cbu, alias, saldo, moneda) VALUES ($1, $2, $3, 0, $4) RETURNING *',
+        [id_producto, cbu, alias || null, moneda]
+      );
+
+      await client.query('COMMIT');
+      return resCuenta.rows[0];
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  },
+
   // Resta monto del saldo de una cuenta (se usa al hacer una transferencia que sale)
   descontarSaldo: async (cbu, monto) => {
     await db.query(
@@ -56,13 +119,38 @@ const Persona = {
 
   // Guarda un movimiento en la tabla movimientos (historial de transacciones)
   // tipos posibles: TRANSFERENCIA_INGRESO, TRANSFERENCIA_EGRESO, DEPOSITO, TRANSFERENCIA_RECHAZADA
+  // cbu_contraparte/nombre_contraparte son opcionales: identifican a quien envio o recibio
+  // la plata del otro lado de una transferencia, y son la base de la lista de "Contactos"
+  // (a proposito NO se llenan en depositos: no tienen contraparte real).
   registrarMovimiento: async (datos) => {
-    const { id_cuenta, tipo_movimiento, monto, descripcion } = datos;
+    const { id_cuenta, tipo_movimiento, monto, descripcion, cbu_contraparte, nombre_contraparte } = datos;
     await db.query(
-      'INSERT INTO movimientos (id_cuenta, tipo_movimiento, monto, descripcion, fecha) VALUES ($1, $2, $3, $4, NOW())',
-      [id_cuenta, tipo_movimiento, monto, descripcion]
+      `INSERT INTO movimientos (id_cuenta, tipo_movimiento, monto, descripcion, cbu_contraparte, nombre_contraparte, fecha)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+      [id_cuenta, tipo_movimiento, monto, descripcion, cbu_contraparte || null, nombre_contraparte || null]
       // NOW() = fecha y hora actual del servidor
     );
+  },
+
+  // Devuelve los contactos de una persona: el CBU y nombre de cada contraparte con la que
+  // ya hizo una transferencia (enviada o recibida), sin duplicados y del mas reciente al mas viejo.
+  // Reemplaza el listado anterior que mostraba a TODOS los clientes del banco.
+  getContactos: async (id_persona) => {
+    const { rows } = await db.query(
+      `SELECT DISTINCT ON (m.cbu_contraparte)
+              m.cbu_contraparte AS cbu, m.nombre_contraparte AS nombre, m.fecha
+       FROM movimientos m
+       JOIN cuentas_bancarias cb ON m.id_cuenta = cb.id_cuenta
+       JOIN productos p ON cb.id_producto = p.id_producto
+       WHERE p.id_persona = $1
+         AND m.tipo_movimiento IN ('TRANSFERENCIA_EGRESO', 'TRANSFERENCIA_INGRESO')
+         AND m.cbu_contraparte IS NOT NULL
+       ORDER BY m.cbu_contraparte, m.fecha DESC`,
+      [id_persona]
+    );
+    // DISTINCT ON obliga a ordenar primero por cbu_contraparte; reordenamos aca
+    // por fecha para que el contacto mas reciente aparezca primero.
+    return rows.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
   },
 
   // Actualiza el alias de una cuenta bancaria en Supabase

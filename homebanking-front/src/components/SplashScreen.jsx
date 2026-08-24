@@ -14,8 +14,6 @@ export default function SplashScreen({ nombre, onFin }) {
   return (
     <div className={`splash${saliendo ? ' splash-out' : ''}`}>
       <div className="splash-glow" />
-      <div className="splash-ring" />
-      <div className="splash-ring r2" />
 
       <div className="splash-center">
         <svg className="splash-logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -57,7 +55,7 @@ export default function SplashScreen({ nombre, onFin }) {
 
         <h1 className="splash-title">TREE BANK</h1>
         <p className="splash-sub">Tu banco, tu naturaleza.</p>
-        {nombre && <p className="splash-hola">Hola, {nombre} 👋</p>}
+        {nombre && <p className="splash-hola">Hola, {nombre}</p>}
       </div>
     </div>
   );

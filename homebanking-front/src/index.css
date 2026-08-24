@@ -103,9 +103,11 @@ input, select, textarea { font-family: inherit; }
 ::selection { background: rgba(16, 185, 129, 0.25); }
 
 /* Scrollbar */
+* { scrollbar-width: thin; scrollbar-color: rgba(14, 42, 67, 0.22) transparent; }
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(14, 42, 67, 0.18); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(14, 42, 67, 0.32); }
 
 /* ── Animaciones ─────────────────────────────────────────────── */
 @keyframes fadeUp {
@@ -116,11 +118,6 @@ input, select, textarea { font-family: inherit; }
 @keyframes shimmer {
   from { background-position: -400px 0; }
   to   { background-position: 400px 0; }
-}
-@keyframes blob {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33%      { transform: translate(40px, -30px) scale(1.08); }
-  66%      { transform: translate(-25px, 25px) scale(0.95); }
 }
 @keyframes popIn {
   from { opacity: 0; transform: scale(0.92); }
@@ -258,6 +255,7 @@ input, select, textarea { font-family: inherit; }
   letter-spacing: -0.025em;
   line-height: 1.15;
   margin-bottom: 5px;
+  text-wrap: balance;
 }
 .page-sub { color: var(--text-2); font-size: 14.5px; margin-bottom: 30px; }
 
@@ -303,21 +301,6 @@ input, select, textarea { font-family: inherit; }
     0 26px 56px -16px rgba(14, 42, 67, 0.55),
     0 22px 48px -20px rgba(5, 150, 105, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.25);
-}
-/* Brillo en barrido periódico */
-.balance-card::after {
-  content: '';
-  position: absolute;
-  top: -60%; left: -80%;
-  width: 50%; height: 220%;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.18), transparent);
-  transform: rotate(18deg);
-  pointer-events: none;
-  animation: sheen 6s ease-in-out infinite;
-}
-@keyframes sheen {
-  0%, 55%  { left: -80%; }
-  85%, 100% { left: 130%; }
 }
 /* Marca de agua orgánica */
 .balance-card::before {
@@ -421,7 +404,7 @@ input, select, textarea { font-family: inherit; }
   border-radius: 15px;
   display: flex; align-items: center; justify-content: center;
   background: linear-gradient(135deg, #e3f8ee, #d2f3e3);
-  border: 1px solid #bdeBD6;
+  border: 1px solid #bde5d6;
   color: var(--green-bright);
   transition: transform 0.3s var(--ease-spring), box-shadow 0.3s var(--ease-out);
 }
@@ -611,7 +594,7 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
 }
 .chip:hover { color: var(--text); border-color: #c9dbd1; }
 .chip.active {
-  background: linear-gradient(120deg, #10b981, #059669);
+  background: var(--green-bright);
   color: #ffffff;
   border-color: transparent;
   box-shadow: 0 8px 20px -8px rgba(5, 150, 105, 0.5);
@@ -641,7 +624,7 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.tx-icon.in  { background: #e3f8ee; color: var(--green-bright); border: 1px solid #bdeBD6; }
+.tx-icon.in  { background: #e3f8ee; color: var(--green-bright); border: 1px solid #bde5d6; }
 .tx-icon.out { background: #fdeeee; color: var(--red); border: 1px solid #f6d5d5; }
 .tx-info { flex: 1; min-width: 0; }
 .tx-desc {
@@ -777,16 +760,16 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
     radial-gradient(ellipse 70% 55% at 85% -5%, rgba(5, 150, 105, 0.35) 0%, transparent 55%),
     linear-gradient(160deg, var(--navy) 0%, var(--navy-deep) 70%, #06141f 100%);
 }
+/* Manchas de luz fijas (no "respiran"): dan profundidad sin distraer */
 .auth-blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.4;
-  animation: blob 16s ease-in-out infinite;
+  filter: blur(100px);
+  opacity: 0.28;
   pointer-events: none;
 }
-.auth-blob.b1 { width: 480px; height: 480px; background: rgba(52, 211, 153, 0.3); top: -160px; left: -120px; }
-.auth-blob.b2 { width: 380px; height: 380px; background: rgba(22, 64, 95, 0.6); bottom: -120px; right: -80px; animation-delay: -8s; }
+.auth-blob.b1 { width: 480px; height: 480px; background: rgba(52, 211, 153, 0.28); top: -180px; left: -140px; }
+.auth-blob.b2 { width: 380px; height: 380px; background: rgba(22, 64, 95, 0.55); bottom: -140px; right: -100px; }
 
 .auth-card {
   position: relative;
@@ -819,36 +802,12 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   letter-spacing: -0.02em;
   text-align: center;
   margin-bottom: 6px;
+  text-wrap: balance;
 }
 .auth-sub { color: var(--text-2); font-size: 14px; text-align: center; margin-bottom: 26px; line-height: 1.5; }
 .auth-footer { text-align: center; margin-top: 22px; font-size: 13.5px; color: var(--text-2); }
 .auth-footer a { color: var(--green-bright); font-weight: 700; }
 .auth-footer a:hover { text-decoration: underline; }
-
-.demo-box {
-  border: 1.5px dashed #86efac;
-  background: #f0fbf5;
-  border-radius: 14px;
-  padding: 13px 16px;
-  margin-bottom: 22px;
-}
-.demo-box-title {
-  display: flex; align-items: center; gap: 7px;
-  font-size: 12px; font-weight: 700; color: var(--green-bright);
-  text-transform: uppercase; letter-spacing: 0.06em;
-  margin-bottom: 9px;
-}
-.demo-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 13px; }
-.demo-row:last-child { margin-bottom: 0; }
-.demo-key { color: var(--text-2); width: 86px; flex-shrink: 0; }
-.demo-val {
-  font-family: 'Sora', monospace;
-  font-weight: 700; font-size: 13px;
-  color: var(--jade);
-  background: #d8f5e7;
-  padding: 2px 10px;
-  border-radius: 7px;
-}
 
 /* ════════════════════════════════════════════════════════════════
    MODALES Y COMPROBANTE
@@ -1135,32 +1094,13 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   to   { opacity: 1; }
 }
 
-/* Resplandor central pulsante */
+/* Resplandor central fijo (sin pulso): profundidad sin efecto "radar" */
 .splash-glow {
   position: absolute;
   width: 560px; height: 560px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(52, 211, 153, 0.35), transparent 65%);
+  background: radial-gradient(circle, rgba(52, 211, 153, 0.28), transparent 65%);
   filter: blur(30px);
-  animation: splashGlow 2.6s ease-in-out infinite alternate;
-}
-@keyframes splashGlow {
-  from { transform: scale(0.85); opacity: 0.7; }
-  to   { transform: scale(1.1);  opacity: 1; }
-}
-
-/* Anillos de energía que se expanden */
-.splash-ring {
-  position: absolute;
-  width: 240px; height: 240px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(167, 243, 208, 0.5);
-  animation: splashRing 2s ease-out infinite;
-}
-.splash-ring.r2 { animation-delay: 0.7s; }
-@keyframes splashRing {
-  from { transform: scale(0.7); opacity: 0.8; }
-  to   { transform: scale(2.6); opacity: 0; }
 }
 
 .splash-center {
@@ -1389,6 +1329,7 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   line-height: 1.15;
   letter-spacing: -0.02em;
   margin: 20px 0 12px;
+  text-wrap: balance;
 }
 .auth-brand-title .verde {
   background: linear-gradient(110deg, #6ee7b7, #34d399);

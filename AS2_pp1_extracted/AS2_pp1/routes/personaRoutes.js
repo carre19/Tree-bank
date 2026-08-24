@@ -35,6 +35,9 @@ router.get('/personas/:id/roles', personaController.obtenerRoles);
 // GET /api/personas/:id/productos (requiere token - solo el propio usuario)
 router.get('/personas/:id/productos', verificarToken, personaController.obtenerProductos);
 
+// GET /api/personas/:id/contactos (requiere token - solo el propio usuario)
+router.get('/personas/:id/contactos', verificarToken, personaController.obtenerContactos);
+
 // POST /api/transferencias (requiere token)
 router.post('/transferencias', verificarToken, personaController.realizarTransferencia);
 

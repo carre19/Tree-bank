@@ -1,0 +1,72 @@
+// ============================================================
+// controllers/centralDeudoresController.js — CENTRAL DE DEUDORES
+// Informa y consulta la situación crediticia de un DNI en el sistema
+// del Banco Central del profe. No tiene lógica propia ni tabla local:
+// cada banco informa sus propias deudas y la consulta junta lo que
+// informó cada uno, todo vive del lado del Banco Central.
+// ============================================================
+
+// Cliente HTTP ya configurado con baseURL y headers (x-api-key, x-environment)
+const centralBank = require('../services/centralBankClient');
+
+// Verifica que el DNI tenga entre 7 y 8 dígitos numéricos
+const validarDni = (dni) => /^\d{7,8}$/.test(String(dni));
+
+// Verifica que la situación crediticia sea un entero entre 1 y 5
+const validarSituacion = (situacion) => Number.isInteger(situacion) && situacion >= 1 && situacion <= 5;
+
+// Verifica que el monto sea un número mayor o igual a 0
+const validarMonto = (monto) => {
+    const n = parseFloat(monto);
+    return !isNaN(n) && n >= 0;
+};
+
+// POST /api/central-deudores — Informa (o actualiza) la deuda de un titular con este banco
+// Requiere estar logueado como ADMIN: es una operación de back-office, no del cliente final.
+exports.informarDeuda = async (req, res) => {
+    const { dni, monto, situacion } = req.body;
+
+    if (dni === undefined || monto === undefined || situacion === undefined) {
+        return res.status(400).json({ error: 'Los campos dni, monto y situacion son requeridos' });
+    }
+    if (!validarDni(dni)) {
+        return res.status(400).json({ error: 'El DNI debe contener entre 7 y 8 digitos numericos' });
+    }
+    if (!validarMonto(monto)) {
+        return res.status(400).json({ error: 'El monto debe ser un numero mayor o igual a 0' });
+    }
+    if (!validarSituacion(situacion)) {
+        return res.status(400).json({ error: 'La situacion debe ser un numero entero entre 1 y 5' });
+    }
+
+    try {
+        const respuestaCentral = await centralBank.post('/central-deudores', { dni, monto, situacion });
+        const mensaje = respuestaCentral.status === 201
+            ? 'Deuda informada por primera vez'
+            : 'Deuda actualizada correctamente';
+        res.status(respuestaCentral.status).json({ mensaje, dni, monto, situacion, datos: respuestaCentral.data });
+    } catch (error) {
+        const detalle = error.response ? error.response.data : error.message;
+        const status = error.response?.status || 500;
+        res.status(status).json({ error: 'No se pudo informar la deuda', detalle });
+    }
+};
+
+// GET /api/central-deudores/:dni — Consulta la situación crediticia de un titular
+// (peor situación entre todas las entidades que informaron, con el detalle de cada una)
+exports.consultarSituacion = async (req, res) => {
+    const { dni } = req.params;
+
+    if (!validarDni(dni)) {
+        return res.status(400).json({ error: 'El DNI debe contener entre 7 y 8 digitos numericos' });
+    }
+
+    try {
+        const respuesta = await centralBank.get(`/central-deudores/${dni}`);
+        res.json(respuesta.data);
+    } catch (error) {
+        const detalle = error.response ? error.response.data : error.message;
+        const status = error.response?.status || 500;
+        res.status(status).json({ error: 'No se pudo obtener la situacion crediticia', detalle });
+    }
+};
