@@ -7,7 +7,8 @@
 
 const Persona = require('../models/personaModel');
 const Prestamo = require('../models/prestamoModel');
-const centralBank = require('../services/centralBankClient');
+const Tarjeta = require('../models/tarjetaModel');
+const { reportarMora } = require('../services/moraService');
 
 const ESTADOS_VALIDOS = ['ACTIVO', 'BLOQUEADO', 'CERRADO'];
 
@@ -97,17 +98,15 @@ exports.marcarPrestamoEnMora = async (req, res) => {
         if (!prestamo) {
             return res.status(404).json({ error: 'No se encontro el prestamo indicado' });
         }
-        if (prestamo.estado !== 'ACTIVO') {
-            return res.status(409).json({ error: `Este prestamo ya esta ${prestamo.estado.toLowerCase()}` });
+
+        try {
+            await reportarMora(prestamo);
+        } catch (error) {
+            if (error.codigo === 'ESTADO_INVALIDO') {
+                return res.status(409).json({ error: error.message });
+            }
+            throw error;
         }
-
-        await centralBank.post('/central-deudores', {
-            dni: prestamo.dni,
-            monto: prestamo.saldo_pendiente,
-            situacion: 4
-        });
-
-        await Persona.cambiarEstadoCuenta(prestamo.id_producto, 'BLOQUEADO');
 
         res.json({
             mensaje: `Prestamo marcado en mora e informado a la Central de Deudores (situacion 4)`,
@@ -118,5 +117,15 @@ exports.marcarPrestamoEnMora = async (req, res) => {
     } catch (error) {
         const detalle = error.response ? error.response.data : error.message;
         res.status(500).json({ error: 'No se pudo marcar el prestamo en mora', detalle });
+    }
+};
+
+// GET /api/admin/tarjetas - Lista todas las tarjetas de credito del banco
+exports.listarTarjetas = async (req, res) => {
+    try {
+        const tarjetas = await Tarjeta.getAllTarjetasAdmin();
+        res.json(tarjetas);
+    } catch (error) {
+        res.status(500).json({ error: 'Error al listar las tarjetas', detalle: error.message });
     }
 };

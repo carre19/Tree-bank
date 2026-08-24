@@ -33,12 +33,16 @@ const centralDeudoresRoutes = require('./routes/centralDeudoresRoutes'); // /api
 const cuentaRoutes  = require('./routes/cuentaRoutes');  // /api/cuentas (cajas de ahorro ARS/USD)
 const prestamoRoutes = require('./routes/prestamoRoutes'); // /api/prestamos
 const cambioRoutes   = require('./routes/cambioRoutes');   // /api/cambio (compra/venta de dolares)
+const tarjetaRoutes  = require('./routes/tarjetaRoutes');  // /api/tarjetas (tarjetas de credito)
 
 // tablaController se usa directamente aquí (no tiene archivo de rutas propio)
 const tablaController = require('./controllers/tablaController');
 
 // También importamos la función de sync para usarla en el cron job
 const { ejecutarSync } = require('./routes/sync');
+
+// Chequeo automático de préstamos vencidos (mora), para el otro cron job
+const { ejecutarVerificacionMoraAutomatica } = require('./services/moraService');
 
 // ---- MIDDLEWARES GLOBALES ----
 // Un middleware es código que se ejecuta ANTES de llegar a las rutas.
@@ -62,6 +66,7 @@ app.use('/api', centralDeudoresRoutes);
 app.use('/api', cuentaRoutes);
 app.use('/api', prestamoRoutes);
 app.use('/api', cambioRoutes);
+app.use('/api', tarjetaRoutes);
 
 // Esta ruta especial permite leer el contenido de cualquier tabla de Supabase
 // Ejemplo: GET /api/tablas/personas → devuelve todas las personas
@@ -91,4 +96,14 @@ app.listen(PORT, () => {
 cron.schedule('*/15 * * * *', async () => {
     console.log('🔄 Sync automático ejecutándose...');
     await ejecutarSync();
+});
+
+// ---- CRON JOB: MORA AUTOMÁTICA DE PRÉSTAMOS ----
+// Una vez por día busca préstamos ACTIVOS cuya cuota venció hace más de
+// DIAS_GRACIA_MORA_AUTOMATICA días y los reporta a la Central de Deudores,
+// igual que el botón manual del panel de administrador.
+cron.schedule('0 6 * * *', async () => {
+    console.log('📋 Verificación automática de préstamos vencidos ejecutándose...');
+    const { candidatos, reportados } = await ejecutarVerificacionMoraAutomatica();
+    console.log(`📋 Préstamos vencidos revisados: ${candidatos}, reportados en mora: ${reportados}`);
 });

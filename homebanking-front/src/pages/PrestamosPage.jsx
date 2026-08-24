@@ -125,6 +125,8 @@ export default function PrestamosPage() {
           <div className="anim-up-1" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {prestamos.map((p) => {
               const badge = p.estado === 'ACTIVO' ? 'in' : p.estado === 'BLOQUEADO' ? 'warn' : 'out';
+              const vencida = p.estado === 'ACTIVO' && p.fecha_proximo_vencimiento
+                && new Date(p.fecha_proximo_vencimiento) < new Date().setHours(0, 0, 0, 0);
               return (
                 <div key={p.id_prestamo} className="card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
@@ -144,6 +146,12 @@ export default function PrestamosPage() {
                       <span>{p.cuotas_pagadas} de {p.cuotas_totales} cuotas pagadas</span>
                       <span>Saldo: $ {fmt(p.saldo_pendiente)}</span>
                     </div>
+                    {p.estado === 'ACTIVO' && p.fecha_proximo_vencimiento && (
+                      <p style={{ fontSize: 12, color: vencida ? 'var(--red)' : 'var(--text-3)', marginBottom: 6 }}>
+                        {vencida ? 'Cuota vencida el ' : 'Próximo vencimiento: '}
+                        {new Date(p.fecha_proximo_vencimiento).toLocaleDateString('es-AR', { timeZone: 'UTC' })}
+                      </p>
+                    )}
                     <div style={{ height: 8, borderRadius: 999, background: 'var(--surface-2)', overflow: 'hidden' }}>
                       <div style={{
                         height: '100%',
@@ -155,6 +163,12 @@ export default function PrestamosPage() {
                     </div>
                   </div>
 
+                  {vencida && (
+                    <div className="alert alert-warn" style={{ marginTop: 16, marginBottom: 0 }}>
+                      <Icon name="alert" size={16} />
+                      <span>Tenés una cuota vencida. Pagala pronto para evitar que se informe a la Central de Deudores.</span>
+                    </div>
+                  )}
                   {p.estado === 'ACTIVO' && (
                     <button
                       className="btn-outline-green"

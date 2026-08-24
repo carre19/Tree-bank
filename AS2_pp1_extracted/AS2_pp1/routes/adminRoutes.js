@@ -25,4 +25,7 @@ router.get('/admin/prestamos', verificarToken, verificarAdmin, adminController.l
 // PUT /api/admin/prestamos/:idPrestamo/mora - Marca un prestamo en mora e informa a la Central de Deudores
 router.put('/admin/prestamos/:idPrestamo/mora', verificarToken, verificarAdmin, adminController.marcarPrestamoEnMora);
 
+// GET /api/admin/tarjetas - Lista todas las tarjetas de credito del banco
+router.get('/admin/tarjetas', verificarToken, verificarAdmin, adminController.listarTarjetas);
+
 module.exports = router;

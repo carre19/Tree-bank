@@ -26,8 +26,8 @@ router.get('/personas/alias/:alias', personaController.buscarPorAlias);
 // GET /api/personas/:cbu/buscar
 router.get('/personas/:cbu/buscar', personaController.buscarPorCbu);
 
-// PUT /api/personas/:cbu/alias
-router.put('/personas/:cbu/alias', personaController.asignarAlias);
+// PUT /api/personas/:cbu/alias (requiere token - solo el dueno de la cuenta)
+router.put('/personas/:cbu/alias', verificarToken, personaController.asignarAlias);
 
 // GET /api/personas/:id/roles
 router.get('/personas/:id/roles', personaController.obtenerRoles);

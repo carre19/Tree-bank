@@ -38,8 +38,8 @@ const Prestamo = {
       const id_producto = resProducto.rows[0].id_producto;
 
       const resPrestamo = await client.query(
-        `INSERT INTO prestamos (id_producto, monto, tasa_interes, cuotas_totales, monto_cuota, saldo_pendiente, situacion_al_otorgar)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        `INSERT INTO prestamos (id_producto, monto, tasa_interes, cuotas_totales, monto_cuota, saldo_pendiente, situacion_al_otorgar, fecha_proximo_vencimiento)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_DATE + INTERVAL '1 month') RETURNING *`,
         [id_producto, monto, tasa_interes, cuotas_totales, monto_cuota, saldo_pendiente, situacion_al_otorgar]
       );
 
@@ -82,17 +82,36 @@ const Prestamo = {
     return rows[0];
   },
 
-  // Registra el pago de una cuota (resta del saldo pendiente, suma una cuota pagada)
+  // Registra el pago de una cuota (resta del saldo pendiente, suma una cuota pagada,
+  // y empuja el proximo vencimiento un mes para adelante)
   registrarPagoCuota: async (id_prestamo, monto_cuota) => {
     const { rows } = await db.query(
       `UPDATE prestamos
        SET cuotas_pagadas = cuotas_pagadas + 1,
-           saldo_pendiente = GREATEST(saldo_pendiente - $2, 0)
+           saldo_pendiente = GREATEST(saldo_pendiente - $2, 0),
+           fecha_proximo_vencimiento = fecha_proximo_vencimiento + INTERVAL '1 month'
        WHERE id_prestamo = $1
        RETURNING *`,
       [id_prestamo, monto_cuota]
     );
     return rows[0];
+  },
+
+  // Prestamos ACTIVOS cuya cuota vencio hace mas de "diasGracia" dias y todavia
+  // no se termino de pagar: candidatos a mora automatica.
+  getPrestamosVencidos: async (diasGracia) => {
+    const { rows } = await db.query(
+      `SELECT pr.*, p.id_producto, per.dni, per.nombre, per.apellido
+       FROM prestamos pr
+       JOIN productos p ON pr.id_producto = p.id_producto
+       JOIN estados_producto ep ON p.id_estado_producto = ep.id_estado_producto
+       JOIN personas per ON p.id_persona = per.id
+       WHERE ep.nombre = 'ACTIVO'
+         AND pr.cuotas_pagadas < pr.cuotas_totales
+         AND pr.fecha_proximo_vencimiento < CURRENT_DATE - ($1 || ' days')::interval`,
+      [diasGracia]
+    );
+    return rows;
   },
 
   // Todos los prestamos del banco, para el panel de administrador

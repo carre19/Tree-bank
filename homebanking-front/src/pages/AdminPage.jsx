@@ -4,6 +4,7 @@ import Icon from '../components/Icon';
 import api from '../api/api';
 
 const ESTADO_PRESTAMO_LABEL = { ACTIVO: 'Al día', CERRADO: 'Pagado', BLOQUEADO: 'En mora' };
+const ESTADO_TARJETA_LABEL = { ACTIVO: 'Activa', CERRADO: 'Cerrada', BLOQUEADO: 'Bloqueada' };
 
 export default function AdminPage() {
   const [cuentas, setCuentas]       = useState([]);
@@ -15,6 +16,9 @@ export default function AdminPage() {
   const [prestamos, setPrestamos]             = useState([]);
   const [cargandoPrestamos, setCargandoPrestamos] = useState(true);
   const [marcandoMora, setMarcandoMora]       = useState(null); // id_prestamo en curso
+
+  const [tarjetas, setTarjetas]               = useState([]);
+  const [cargandoTarjetas, setCargandoTarjetas] = useState(true);
 
   useEffect(() => {
     const cargar = async () => {
@@ -31,7 +35,20 @@ export default function AdminPage() {
     };
     cargar();
     cargarPrestamos();
+    cargarTarjetas();
   }, []);
+
+  const cargarTarjetas = async () => {
+    setCargandoTarjetas(true);
+    try {
+      const res = await api.get('/admin/tarjetas');
+      setTarjetas(res.data);
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudieron cargar las tarjetas');
+    } finally {
+      setCargandoTarjetas(false);
+    }
+  };
 
   const cargarPrestamos = async () => {
     setCargandoPrestamos(true);
@@ -272,6 +289,8 @@ export default function AdminPage() {
       <div className="anim-up-3" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {prestamos.map((p) => {
           const badge = p.estado === 'ACTIVO' ? 'in' : p.estado === 'BLOQUEADO' ? 'warn' : 'out';
+          const vencida = p.estado === 'ACTIVO' && p.fecha_proximo_vencimiento
+            && new Date(p.fecha_proximo_vencimiento) < new Date().setHours(0, 0, 0, 0);
           return (
             <div key={p.id_prestamo} className="tx-item" style={{ flexWrap: 'wrap' }}>
               <div className={`tx-icon ${p.estado === 'BLOQUEADO' ? 'out' : 'in'}`}>
@@ -281,6 +300,12 @@ export default function AdminPage() {
                 <p className="tx-desc">{p.nombre} {p.apellido} · DNI {p.dni}</p>
                 <p className="tx-date">
                   {p.cuotas_pagadas}/{p.cuotas_totales} cuotas · saldo $ {fmt(p.saldo_pendiente)}
+                  {p.estado === 'ACTIVO' && p.fecha_proximo_vencimiento && (
+                    <span style={{ color: vencida ? 'var(--red)' : 'inherit' }}>
+                      {' '}· vence {new Date(p.fecha_proximo_vencimiento).toLocaleDateString('es-AR', { timeZone: 'UTC' })}
+                      {vencida ? ' (vencida)' : ''}
+                    </span>
+                  )}
                 </p>
               </div>
               <div className="tx-right">
@@ -299,6 +324,44 @@ export default function AdminPage() {
                   </button>
                 </div>
               )}
+            </div>
+          );
+        })}
+      </div>
+
+      <h3 className="section-title anim-up-3">Tarjetas de crédito</h3>
+
+      {cargandoTarjetas && (
+        <div className="loading-center">
+          <div className="spinner" />
+          Cargando tarjetas…
+        </div>
+      )}
+
+      {!cargandoTarjetas && tarjetas.length === 0 && (
+        <div className="empty anim-up-3">
+          <div className="empty-icon"><Icon name="card" size={26} /></div>
+          <p>Todavía no se emitió ninguna tarjeta</p>
+        </div>
+      )}
+
+      <div className="anim-up-3" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {tarjetas.map((t) => {
+          const badge = t.estado === 'ACTIVO' ? 'in' : t.estado === 'BLOQUEADO' ? 'warn' : 'out';
+          return (
+            <div key={t.id_tarjeta} className="tx-item" style={{ flexWrap: 'wrap' }}>
+              <div className={`tx-icon ${t.estado === 'BLOQUEADO' ? 'out' : 'in'}`}>
+                <Icon name="card" size={19} />
+              </div>
+              <div className="tx-info">
+                <p className="tx-desc">{t.nombre} {t.apellido} · DNI {t.dni}</p>
+                <p className="tx-date">
+                  {t.marca} ···· {String(t.numero_tarjeta).slice(-4)} · consumido $ {fmt(t.saldo_consumido)} de $ {fmt(t.limite_compra)}
+                </p>
+              </div>
+              <div className="tx-right">
+                <span className={`tx-badge ${badge}`}>{ESTADO_TARJETA_LABEL[t.estado] || t.estado}</span>
+              </div>
             </div>
           );
         })}

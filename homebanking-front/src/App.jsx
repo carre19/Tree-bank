@@ -10,6 +10,7 @@ import HistorialPage from './pages/HistorialPage';
 import DepositosPage from './pages/DepositosPage';
 import PrestamosPage from './pages/PrestamosPage';
 import CambioPage from './pages/CambioPage';
+import TarjetasPage from './pages/TarjetasPage';
 import PerfilPage from './pages/PerfilPage';
 import AdminPage from './pages/AdminPage';
 
@@ -59,6 +60,7 @@ function AppRoutes() {
         <Route path="/depositos" element={<RutaPrivada><DepositosPage /></RutaPrivada>} />
         <Route path="/prestamos" element={<RutaPrivada><PrestamosPage /></RutaPrivada>} />
         <Route path="/cambio" element={<RutaPrivada><CambioPage /></RutaPrivada>} />
+        <Route path="/tarjetas" element={<RutaPrivada><TarjetasPage /></RutaPrivada>} />
         <Route path="/perfil" element={<RutaPrivada><PerfilPage /></RutaPrivada>} />
         <Route path="/admin" element={<RutaAdmin><AdminPage /></RutaAdmin>} />
       </Routes>

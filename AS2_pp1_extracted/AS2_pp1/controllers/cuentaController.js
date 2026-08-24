@@ -94,7 +94,7 @@ exports.buscarPorCbu = async (req, res) => {
     }
 };
 
-// PUT /api/cuentas/:cbu/alias — Asigna o cambia el alias de una cuenta
+// PUT /api/cuentas/:cbu/alias — Asigna o cambia el alias de una cuenta (requiere ser el dueno)
 exports.asignarAlias = async (req, res) => {
     const { cbu } = req.params;
     const { alias } = req.body;
@@ -102,6 +102,14 @@ exports.asignarAlias = async (req, res) => {
         return res.status(400).json({ error: 'El alias debe tener al menos 3 caracteres' });
     }
     try {
+        const cuenta = await Persona.getByCbu(cbu);
+        if (!cuenta) {
+            return res.status(404).json({ error: 'No se encontro una cuenta con ese CBU' });
+        }
+        if (cuenta.id_persona !== req.usuario.id) {
+            return res.status(403).json({ error: 'No tenes permiso para modificar el alias de esta cuenta' });
+        }
+
         await centralBank.put(`/accounts/${cbu}/alias`, { alias });
         await Persona.actualizarAlias(cbu, alias);
         res.json({ mensaje: 'Alias actualizado correctamente', cbu, alias });

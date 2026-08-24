@@ -8,7 +8,9 @@ import api from '../api/api';
 const ACCIONES = [
   { to: '/transferencias', icon: 'send',    label: 'Transferir' },
   { to: '/depositos',      icon: 'deposit', label: 'Depositar' },
+  { to: '/cambio',         icon: 'swap',    label: 'Cambio' },
   { to: '/prestamos',      icon: 'loan',    label: 'Préstamos' },
+  { to: '/tarjetas',       icon: 'card',    label: 'Tarjetas' },
   { to: '/perfil',         icon: 'user',    label: 'Mi perfil' },
 ];
 

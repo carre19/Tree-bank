@@ -30,6 +30,7 @@ const paths = {
   userPlus:  <><circle cx="10" cy="8" r="4" /><path d="M2 21c0-4 3.5-6 8-6 1.4 0 2.7.2 3.8.6" /><path d="M19 8v6" /><path d="M16 11h6" /></>,
   camera:    <><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2.5h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8z" /><circle cx="12" cy="13" r="3.5" /></>,
   loan:      <><path d="M6 2.5h8l4 4V20a1.2 1.2 0 0 1-1.2 1.2H6A1.2 1.2 0 0 1 4.8 20V3.7A1.2 1.2 0 0 1 6 2.5z" /><path d="M14 2.5v4h4" /><path d="m9 16.5 6-6" /><circle cx="9.6" cy="10.1" r="1" fill="currentColor" /><circle cx="14.4" cy="14.9" r="1" fill="currentColor" /></>,
+  card:      <><rect x="2" y="5" width="20" height="14" rx="2.5" /><path d="M2 9.5h20" /><path d="M6 15h4" /></>,
 };
 
 export default function Icon({ name, size = 20, strokeWidth = 2, className = '', style }) {

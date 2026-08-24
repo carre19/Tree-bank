@@ -18,7 +18,7 @@ router.get('/cuentas/alias/:alias', cuentaController.buscarPorAlias);
 // GET /api/cuentas/:cbu
 router.get('/cuentas/:cbu', cuentaController.buscarPorCbu);
 
-// PUT /api/cuentas/:cbu/alias
-router.put('/cuentas/:cbu/alias', cuentaController.asignarAlias);
+// PUT /api/cuentas/:cbu/alias (requiere token - solo el dueno de la cuenta)
+router.put('/cuentas/:cbu/alias', verificarToken, cuentaController.asignarAlias);
 
 module.exports = router;
