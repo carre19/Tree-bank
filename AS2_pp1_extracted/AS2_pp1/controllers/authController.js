@@ -26,9 +26,11 @@ const validarDni = (dni) => /^\d{7,8}$/.test(String(dni));
 // POST /api/auth/register — Crea una contraseña para una persona que ya existe en el sistema
 // IMPORTANTE: primero hay que crear la persona con POST /api/personas,
 // solo después se puede registrar su contraseña acá.
+// Es tambien el primer paso self-service del cliente (el operador solo cargo nombre/DNI),
+// asi que de paso completa sus datos de contacto: email, telefono, direccion y sexo.
 exports.register = async (req, res) => {
-    // Extraemos dni y password del body del pedido
-    const { dni, password } = req.body;
+    // Extraemos los datos del body del pedido
+    const { dni, password, email, telefono, direccion, sexo, nombre, apellido } = req.body;
 
     // Validaciones básicas antes de hacer nada
     if (!dni || !password) {
@@ -39,6 +41,25 @@ exports.register = async (req, res) => {
     }
     if (password.length < 6) {
         return res.status(400).json({ error: 'La password debe tener al menos 6 caracteres' });
+    }
+    // El email pasa a ser obligatorio: hace falta para completar el perfil
+    if (!email || !validarEmail(email)) {
+        return res.status(400).json({ error: 'El email es requerido y debe tener un formato valido' });
+    }
+    if (!nombre || nombre.trim().length < 2) {
+        return res.status(400).json({ error: 'El nombre es requerido y debe tener al menos 2 caracteres' });
+    }
+    if (!apellido || apellido.trim().length < 2) {
+        return res.status(400).json({ error: 'El apellido es requerido y debe tener al menos 2 caracteres' });
+    }
+    if (!sexo) {
+        return res.status(400).json({ error: 'El sexo es requerido' });
+    }
+    if (!direccion) {
+        return res.status(400).json({ error: 'La direccion es requerida' });
+    }
+    if (!telefono) {
+        return res.status(400).json({ error: 'El telefono es requerido' });
     }
 
     try {
@@ -61,8 +82,19 @@ exports.register = async (req, res) => {
         // Ese hash es irreversible: nadie puede sacar la contraseña original desde el hash
         const password_hash = await bcrypt.hash(password, 10);
 
-        // Guardamos el hash en la tabla personas (nunca la contraseña en texto plano)
-        await db.query('UPDATE personas SET password_hash = $1 WHERE dni = $2', [password_hash, dni]);
+        // Guardamos el hash y todos los datos de identidad/contacto del registro.
+        await db.query(
+            `UPDATE personas SET
+                password_hash = $1,
+                email = $2,
+                nombre = $3,
+                apellido = $4,
+                telefono = $5,
+                direccion = $6,
+                sexo = $7
+             WHERE dni = $8`,
+            [password_hash, email.trim(), nombre.trim(), apellido.trim(), telefono.trim(), direccion.trim(), sexo, dni]
+        );
 
         res.status(201).json({ mensaje: 'Contrasena registrada correctamente. Ya podes hacer login.' });
 
@@ -73,6 +105,7 @@ exports.register = async (req, res) => {
 
 // POST /api/auth/login — Verifica las credenciales y devuelve un token JWT
 // El token es lo que el frontend guarda y manda en cada pedido protegido
+// Pide DNI + password. El email solo se usa en el registro.
 exports.login = async (req, res) => {
     const { dni, password } = req.body;
 
@@ -84,7 +117,7 @@ exports.login = async (req, res) => {
         // Buscamos la persona por DNI en Supabase
         const { rows } = await db.query('SELECT * FROM personas WHERE dni = $1', [dni]);
         if (rows.length === 0) {
-            // Intencionalmente damos el mismo mensaje para DNI o password inválidos
+            // Intencionalmente damos el mismo mensaje para DNI o password invalidos
             // (por seguridad: así el atacante no sabe cuál de los dos falló)
             return res.status(401).json({ error: 'DNI o password incorrectos' });
         }
@@ -149,7 +182,7 @@ exports.login = async (req, res) => {
 exports.me = async (req, res) => {
     try {
         const { rows } = await db.query(
-            'SELECT id, nombre, apellido, dni, email, telefono, direccion, fecha_nac FROM personas WHERE id = $1',
+            'SELECT id, nombre, apellido, dni, email, telefono, direccion, sexo, fecha_nac FROM personas WHERE id = $1',
             [req.usuario.id]
         );
         if (rows.length === 0) {
@@ -165,7 +198,7 @@ exports.me = async (req, res) => {
 exports.getPerfil = async (req, res) => {
     try {
         const { rows } = await db.query(
-            'SELECT id, nombre, apellido, dni, email, telefono, direccion, fecha_nac FROM personas WHERE id = $1',
+            'SELECT id, nombre, apellido, dni, email, telefono, direccion, sexo, fecha_nac FROM personas WHERE id = $1',
             [req.usuario.id]
         );
         if (rows.length === 0) {
@@ -179,10 +212,10 @@ exports.getPerfil = async (req, res) => {
 
 // PUT /api/auth/perfil - Actualiza datos personales del usuario logueado
 exports.updatePerfil = async (req, res) => {
-    const { nombre, apellido, email, telefono, direccion } = req.body;
+    const { nombre, apellido, email, telefono, direccion, sexo } = req.body;
 
     // Validar al menos un campo para actualizar
-    if (!nombre && !apellido && !email && !telefono && !direccion) {
+    if (!nombre && !apellido && !email && !telefono && !direccion && !sexo) {
         return res.status(400).json({ error: 'Debes enviar al menos un campo para actualizar' });
     }
 
@@ -210,11 +243,12 @@ exports.updatePerfil = async (req, res) => {
         if (email)     { campos.push(`email = $${idx++}`);     valores.push(email.trim()); }
         if (telefono)  { campos.push(`telefono = $${idx++}`);  valores.push(telefono.trim()); }
         if (direccion) { campos.push(`direccion = $${idx++}`); valores.push(direccion.trim()); }
+        if (sexo)      { campos.push(`sexo = $${idx++}`);      valores.push(sexo.trim()); }
 
         valores.push(req.usuario.id);
 
         const { rows } = await db.query(
-            `UPDATE personas SET ${campos.join(', ')} WHERE id = $${idx} RETURNING id, nombre, apellido, dni, email, telefono, direccion`,
+            `UPDATE personas SET ${campos.join(', ')} WHERE id = $${idx} RETURNING id, nombre, apellido, dni, email, telefono, direccion, sexo`,
             valores
         );
 
