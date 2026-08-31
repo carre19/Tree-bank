@@ -2,7 +2,9 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import TreeBankLogo from './TreeBankLogo';
 import Icon from './Icon';
+import ChatBot from './ChatBot';
 
+// Sidebar (desktop): todo el menu, hay lugar de sobra
 const NAV_ITEMS_CLIENTE = [
   { to: '/dashboard',      icon: 'home',    label: 'Inicio' },
   { to: '/transferencias', icon: 'send',    label: 'Transferir' },
@@ -10,6 +12,15 @@ const NAV_ITEMS_CLIENTE = [
   { to: '/cambio',         icon: 'swap',    label: 'Cambio' },
   { to: '/prestamos',      icon: 'loan',    label: 'Préstamos' },
   { to: '/tarjetas',       icon: 'card',    label: 'Tarjetas' },
+  { to: '/historial',      icon: 'history', label: 'Movimientos' },
+  { to: '/perfil',         icon: 'user',    label: 'Mi perfil' },
+];
+
+// Bottom nav (mobile): solo lo esencial. El resto (Depositar, Cambio,
+// Prestamos, Tarjetas) se accede desde los accesos rapidos del Inicio.
+const NAV_ITEMS_CLIENTE_MOBILE = [
+  { to: '/dashboard',      icon: 'home',    label: 'Inicio' },
+  { to: '/transferencias', icon: 'send',    label: 'Transferir' },
   { to: '/historial',      icon: 'history', label: 'Movimientos' },
   { to: '/perfil',         icon: 'user',    label: 'Mi perfil' },
 ];
@@ -24,6 +35,7 @@ export default function AppLayout({ children }) {
   const { usuario, logout, foto } = useAuth();
   const navigate = useNavigate();
   const NAV_ITEMS = usuario?.esAdmin ? NAV_ITEMS_ADMIN : NAV_ITEMS_CLIENTE;
+  const NAV_ITEMS_MOBILE = usuario?.esAdmin ? NAV_ITEMS_ADMIN : NAV_ITEMS_CLIENTE_MOBILE;
 
   const handleLogout = () => {
     logout();
@@ -96,7 +108,7 @@ export default function AppLayout({ children }) {
 
       {/* ── Bottom nav (mobile) ── */}
       <nav className="bottombar">
-        {NAV_ITEMS.map((item) => (
+        {NAV_ITEMS_MOBILE.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -107,6 +119,8 @@ export default function AppLayout({ children }) {
           </NavLink>
         ))}
       </nav>
+
+      <ChatBot />
     </div>
   );
 }
