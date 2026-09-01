@@ -129,8 +129,9 @@ exports.pagarResumen = async (req, res) => {
         }
 
         const cuenta = await Persona.getCuentaArsPorPersona(tarjeta.id_persona);
-        if (!cuenta || Number(cuenta.saldo) < monto) {
-            return res.status(400).json({ error: 'Saldo insuficiente en tu caja en ARS para pagar el resumen' });
+        const disponible = cuenta ? Number(cuenta.saldo) - Number(cuenta.reservado || 0) : 0;
+        if (!cuenta || disponible < monto) {
+            return res.status(400).json({ error: `Saldo disponible insuficiente en tu caja en ARS para pagar el resumen (disponible: $ ${disponible.toFixed(2)})` });
         }
 
         await Persona.descontarSaldo(cuenta.cbu, monto);

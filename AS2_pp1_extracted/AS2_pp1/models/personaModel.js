@@ -20,9 +20,13 @@ const Persona = {
   // Busca una cuenta bancaria por su CBU
   // Devuelve la cuenta completa (id_cuenta, saldo, alias, etc.) junto con el dueno
   // (id_persona) y el estado del producto (ACTIVO/BLOQUEADO/CERRADO), o undefined si no existe
+  // reservado = plata "apartada" en Reservas para esta cuenta (ver models/personaModel.js
+  // funciones de reservas mas abajo). disponible = saldo - reservado: es lo que de verdad
+  // se puede transferir, pagar o gastar sin tocar lo que el usuario aparto a proposito.
   getByCbu: async (cbu) => {
     const { rows } = await db.query(
-      `SELECT cb.*, ep.nombre AS estado, p.id_persona
+      `SELECT cb.*, ep.nombre AS estado, p.id_persona,
+              COALESCE((SELECT SUM(r.monto) FROM reservas r WHERE r.id_cuenta = cb.id_cuenta), 0) AS reservado
        FROM cuentas_bancarias cb
        JOIN productos p ON cb.id_producto = p.id_producto
        JOIN estados_producto ep ON p.id_estado_producto = ep.id_estado_producto
@@ -37,7 +41,8 @@ const Persona = {
   // pero necesitamos SU cuenta para mover la plata.
   getCuentaArsPorPersona: async (id_persona) => {
     const { rows } = await db.query(
-      `SELECT cb.*, per.dni, per.nombre, per.apellido
+      `SELECT cb.*, per.dni, per.nombre, per.apellido,
+              COALESCE((SELECT SUM(r.monto) FROM reservas r WHERE r.id_cuenta = cb.id_cuenta), 0) AS reservado
        FROM cuentas_bancarias cb
        JOIN productos p ON cb.id_producto = p.id_producto
        JOIN personas per ON p.id_persona = per.id
@@ -57,7 +62,9 @@ const Persona = {
   // Busca la cuenta bancaria local de una persona en una moneda especifica (ARS, USD, etc.)
   getCuentaPorPersonaYMoneda: async (id_persona, moneda) => {
     const { rows } = await db.query(
-      `SELECT cb.* FROM cuentas_bancarias cb
+      `SELECT cb.*,
+              COALESCE((SELECT SUM(r.monto) FROM reservas r WHERE r.id_cuenta = cb.id_cuenta), 0) AS reservado
+       FROM cuentas_bancarias cb
        JOIN productos p ON cb.id_producto = p.id_producto
        WHERE p.id_persona = $1 AND cb.moneda = $2`,
       [id_persona, moneda]
@@ -159,6 +166,54 @@ const Persona = {
       'UPDATE cuentas_bancarias SET alias = $1 WHERE cbu = $2',
       [alias, cbu]
     );
+  },
+
+  // ---- Reservas: plata apartada dentro de una cuenta, sin moverla del saldo real ----
+
+  getReservasPorCuenta: async (id_cuenta) => {
+    const { rows } = await db.query(
+      'SELECT * FROM reservas WHERE id_cuenta = $1 ORDER BY fecha_creacion DESC',
+      [id_cuenta]
+    );
+    return rows;
+  },
+
+  // Trae una reserva puntual junto con el dueno de la cuenta (para validar ownership)
+  getReservaDetalle: async (id_reserva) => {
+    const { rows } = await db.query(
+      `SELECT r.*, cb.cbu, cb.saldo, p.id_persona
+       FROM reservas r
+       JOIN cuentas_bancarias cb ON r.id_cuenta = cb.id_cuenta
+       JOIN productos p ON cb.id_producto = p.id_producto
+       WHERE r.id_reserva = $1`,
+      [id_reserva]
+    );
+    return rows[0];
+  },
+
+  crearReserva: async ({ id_cuenta, nombre, monto }) => {
+    const { rows } = await db.query(
+      'INSERT INTO reservas (id_cuenta, nombre, monto) VALUES ($1, $2, $3) RETURNING *',
+      [id_cuenta, nombre, monto]
+    );
+    return rows[0];
+  },
+
+  // Suma (delta positivo) o resta (delta negativo) plata de una reserva existente.
+  // La condicion monto + delta >= 0 en el WHERE evita liberar mas de lo que tiene
+  // sin necesidad de una lectura previa por separado.
+  modificarMontoReserva: async (id_reserva, delta) => {
+    const { rows } = await db.query(
+      `UPDATE reservas SET monto = monto + $2
+       WHERE id_reserva = $1 AND monto + $2 >= 0
+       RETURNING *`,
+      [id_reserva, delta]
+    );
+    return rows[0];
+  },
+
+  eliminarReserva: async (id_reserva) => {
+    await db.query('DELETE FROM reservas WHERE id_reserva = $1', [id_reserva]);
   },
 
   // Crea una persona nueva con su producto y su cuenta bancaria en un solo paso

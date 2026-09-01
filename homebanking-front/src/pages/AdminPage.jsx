@@ -5,6 +5,7 @@ import api from '../api/api';
 
 const ESTADO_PRESTAMO_LABEL = { ACTIVO: 'Al día', CERRADO: 'Pagado', BLOQUEADO: 'En mora' };
 const ESTADO_TARJETA_LABEL = { ACTIVO: 'Activa', CERRADO: 'Cerrada', BLOQUEADO: 'Bloqueada' };
+const ESTADO_SEGURO_LABEL = { ACTIVO: 'Vigente', CERRADO: 'Cancelada' };
 
 export default function AdminPage() {
   const [cuentas, setCuentas]       = useState([]);
@@ -19,6 +20,9 @@ export default function AdminPage() {
 
   const [tarjetas, setTarjetas]               = useState([]);
   const [cargandoTarjetas, setCargandoTarjetas] = useState(true);
+
+  const [seguros, setSeguros]                 = useState([]);
+  const [cargandoSeguros, setCargandoSeguros] = useState(true);
 
   useEffect(() => {
     const cargar = async () => {
@@ -36,7 +40,20 @@ export default function AdminPage() {
     cargar();
     cargarPrestamos();
     cargarTarjetas();
+    cargarSeguros();
   }, []);
+
+  const cargarSeguros = async () => {
+    setCargandoSeguros(true);
+    try {
+      const res = await api.get('/admin/seguros');
+      setSeguros(res.data);
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudieron cargar los seguros');
+    } finally {
+      setCargandoSeguros(false);
+    }
+  };
 
   const cargarTarjetas = async () => {
     setCargandoTarjetas(true);
@@ -361,6 +378,44 @@ export default function AdminPage() {
               </div>
               <div className="tx-right">
                 <span className={`tx-badge ${badge}`}>{ESTADO_TARJETA_LABEL[t.estado] || t.estado}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <h3 className="section-title anim-up-3">Seguros</h3>
+
+      {cargandoSeguros && (
+        <div className="loading-center">
+          <div className="spinner" />
+          Cargando seguros…
+        </div>
+      )}
+
+      {!cargandoSeguros && seguros.length === 0 && (
+        <div className="empty anim-up-3">
+          <div className="empty-icon"><Icon name="insurance" size={26} /></div>
+          <p>Todavía no se contrató ninguna póliza</p>
+        </div>
+      )}
+
+      <div className="anim-up-3" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {seguros.map((s) => {
+          const badge = s.estado === 'ACTIVO' ? 'in' : 'out';
+          return (
+            <div key={s.id_poliza} className="tx-item" style={{ flexWrap: 'wrap' }}>
+              <div className={`tx-icon ${s.estado === 'ACTIVO' ? 'in' : 'out'}`}>
+                <Icon name="insurance" size={19} />
+              </div>
+              <div className="tx-info">
+                <p className="tx-desc">{s.nombre} {s.apellido} · DNI {s.dni}</p>
+                <p className="tx-date">
+                  {s.tipo_seguro} · cobertura $ {fmt(s.cobertura)} · prima $ {fmt(s.prima_mensual)}/mes
+                </p>
+              </div>
+              <div className="tx-right">
+                <span className={`tx-badge ${badge}`}>{ESTADO_SEGURO_LABEL[s.estado] || s.estado}</span>
               </div>
             </div>
           );

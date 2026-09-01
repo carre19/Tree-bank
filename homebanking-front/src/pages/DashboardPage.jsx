@@ -5,13 +5,15 @@ import AppLayout from '../components/AppLayout';
 import Icon from '../components/Icon';
 import api from '../api/api';
 
+// Solo lo que no está ya en el sidebar/bottom nav (Inicio, Transferir,
+// Mi perfil, Movimientos), para no repetir los mismos accesos dos veces.
 const ACCIONES = [
-  { to: '/transferencias', icon: 'send',    label: 'Transferir' },
   { to: '/depositos',      icon: 'deposit', label: 'Depositar' },
   { to: '/cambio',         icon: 'swap',    label: 'Cambio' },
-  { to: '/prestamos',      icon: 'loan',    label: 'Préstamos' },
-  { to: '/tarjetas',       icon: 'card',    label: 'Tarjetas' },
-  { to: '/perfil',         icon: 'user',    label: 'Mi perfil' },
+  { to: '/prestamos',      icon: 'loan',      label: 'Préstamos' },
+  { to: '/tarjetas',       icon: 'card',      label: 'Tarjetas' },
+  { to: '/seguros',        icon: 'insurance', label: 'Seguros' },
+  { to: '/reservas',       icon: 'vault',     label: 'Reservas' },
 ];
 
 export default function DashboardPage() {

@@ -47,8 +47,9 @@ exports.realizarCambio = async (req, res) => {
         if (operacion === 'COMPRA') {
             // El cliente compra dolares: paga en ARS a la cotizacion de venta del banco
             const costoArs = Number((montoUsd * venta).toFixed(2));
-            if (Number(cuentaArs.saldo) < costoArs) {
-                return res.status(400).json({ error: `Saldo insuficiente en ARS. Necesitas $ ${costoArs.toFixed(2)}` });
+            const disponibleArs = Number(cuentaArs.saldo) - Number(cuentaArs.reservado || 0);
+            if (disponibleArs < costoArs) {
+                return res.status(400).json({ error: `Saldo disponible insuficiente en ARS. Necesitas $ ${costoArs.toFixed(2)} (disponible: $ ${disponibleArs.toFixed(2)})` });
             }
 
             await Persona.descontarSaldo(cuentaArs.cbu, costoArs);
@@ -69,8 +70,9 @@ exports.realizarCambio = async (req, res) => {
         }
 
         // VENTA: el cliente vende dolares: recibe ARS a la cotizacion de compra del banco
-        if (Number(cuentaUsd.saldo) < montoUsd) {
-            return res.status(400).json({ error: 'Saldo insuficiente en USD' });
+        const disponibleUsd = Number(cuentaUsd.saldo) - Number(cuentaUsd.reservado || 0);
+        if (disponibleUsd < montoUsd) {
+            return res.status(400).json({ error: `Saldo disponible insuficiente en USD (disponible: U$S ${disponibleUsd.toFixed(2)})` });
         }
         const recibeArs = Number((montoUsd * compra).toFixed(2));
 

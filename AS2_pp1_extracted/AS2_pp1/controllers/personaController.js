@@ -170,9 +170,11 @@ exports.realizarTransferencia = async (req, res) => {
             return res.status(403).json({ error: `La cuenta esta ${cuentaOrigen.estado.toLowerCase()} y no puede operar. Contacta al banco.` });
         }
 
-        // Verificación de saldo suficiente antes de llamar al Banco Central
-        if (parseFloat(cuentaOrigen.saldo) < parseFloat(monto)) {
-            return res.status(400).json({ error: 'Saldo insuficiente para realizar la transferencia' });
+        // Verificación de saldo disponible (saldo - reservas) antes de llamar al Banco Central:
+        // la plata que el usuario aparto en una reserva no se puede transferir sin liberarla antes
+        const disponibleOrigen = parseFloat(cuentaOrigen.saldo) - parseFloat(cuentaOrigen.reservado || 0);
+        if (disponibleOrigen < parseFloat(monto)) {
+            return res.status(400).json({ error: `Saldo disponible insuficiente para realizar la transferencia (disponible: $ ${disponibleOrigen.toFixed(2)})` });
         }
 
         // Llamada al Banco Central del profe para que procese la transferencia

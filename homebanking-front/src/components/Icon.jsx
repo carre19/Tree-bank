@@ -32,6 +32,8 @@ const paths = {
   loan:      <><path d="M6 2.5h8l4 4V20a1.2 1.2 0 0 1-1.2 1.2H6A1.2 1.2 0 0 1 4.8 20V3.7A1.2 1.2 0 0 1 6 2.5z" /><path d="M14 2.5v4h4" /><path d="m9 16.5 6-6" /><circle cx="9.6" cy="10.1" r="1" fill="currentColor" /><circle cx="14.4" cy="14.9" r="1" fill="currentColor" /></>,
   card:      <><rect x="2" y="5" width="20" height="14" rx="2.5" /><path d="M2 9.5h20" /><path d="M6 15h4" /></>,
   chat:      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />,
+  insurance: <><path d="M12 2.5 4.5 5.5v6c0 5 3.5 8.5 7.5 10 4-1.5 7.5-5 7.5-10v-6L12 2.5z" /><path d="m9 12 2.2 2.2L15.5 10" /></>,
+  vault:     <><rect x="3" y="7" width="18" height="14" rx="2.5" /><path d="M8 7V5.5A4 4 0 0 1 12 1.5a4 4 0 0 1 4 4V7" /><circle cx="12" cy="14" r="2.3" /><path d="M12 16.3V18" /></>,
 };
 
 export default function Icon({ name, size = 20, strokeWidth = 2, className = '', style }) {

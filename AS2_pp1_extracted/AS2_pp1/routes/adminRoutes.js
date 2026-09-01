@@ -28,4 +28,7 @@ router.put('/admin/prestamos/:idPrestamo/mora', verificarToken, verificarAdmin, 
 // GET /api/admin/tarjetas - Lista todas las tarjetas de credito del banco
 router.get('/admin/tarjetas', verificarToken, verificarAdmin, adminController.listarTarjetas);
 
+// GET /api/admin/seguros - Lista todas las polizas del banco
+router.get('/admin/seguros', verificarToken, verificarAdmin, adminController.listarSeguros);
+
 module.exports = router;

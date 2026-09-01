@@ -8,6 +8,7 @@
 const Persona = require('../models/personaModel');
 const Prestamo = require('../models/prestamoModel');
 const Tarjeta = require('../models/tarjetaModel');
+const Seguro = require('../models/seguroModel');
 const { reportarMora } = require('../services/moraService');
 
 const ESTADOS_VALIDOS = ['ACTIVO', 'BLOQUEADO', 'CERRADO'];
@@ -127,5 +128,15 @@ exports.listarTarjetas = async (req, res) => {
         res.json(tarjetas);
     } catch (error) {
         res.status(500).json({ error: 'Error al listar las tarjetas', detalle: error.message });
+    }
+};
+
+// GET /api/admin/seguros - Lista todas las polizas del banco
+exports.listarSeguros = async (req, res) => {
+    try {
+        const polizas = await Seguro.getAllPolizasAdmin();
+        res.json(polizas);
+    } catch (error) {
+        res.status(500).json({ error: 'Error al listar las polizas', detalle: error.message });
     }
 };

@@ -112,8 +112,9 @@ exports.pagarCuota = async (req, res) => {
         }
 
         const cuenta = await Persona.getCuentaArsPorPersona(prestamo.id_persona);
-        if (!cuenta || Number(cuenta.saldo) < Number(prestamo.monto_cuota)) {
-            return res.status(400).json({ error: 'Saldo insuficiente para pagar la cuota' });
+        const disponible = cuenta ? Number(cuenta.saldo) - Number(cuenta.reservado || 0) : 0;
+        if (!cuenta || disponible < Number(prestamo.monto_cuota)) {
+            return res.status(400).json({ error: `Saldo disponible insuficiente para pagar la cuota (disponible: $ ${disponible.toFixed(2)})` });
         }
 
         await Persona.descontarSaldo(cuenta.cbu, prestamo.monto_cuota);

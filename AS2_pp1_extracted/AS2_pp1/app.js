@@ -34,6 +34,8 @@ const cuentaRoutes  = require('./routes/cuentaRoutes');  // /api/cuentas (cajas 
 const prestamoRoutes = require('./routes/prestamoRoutes'); // /api/prestamos
 const cambioRoutes   = require('./routes/cambioRoutes');   // /api/cambio (compra/venta de dolares)
 const tarjetaRoutes  = require('./routes/tarjetaRoutes');  // /api/tarjetas (tarjetas de credito)
+const seguroRoutes   = require('./routes/seguroRoutes');   // /api/seguros (polizas)
+const reservaRoutes  = require('./routes/reservaRoutes');  // /api/cuentas/:cbu/reservas, /api/reservas
 
 // tablaController se usa directamente aquí (no tiene archivo de rutas propio)
 const tablaController = require('./controllers/tablaController');
@@ -43,6 +45,9 @@ const { ejecutarSync } = require('./routes/sync');
 
 // Chequeo automático de préstamos vencidos (mora), para el otro cron job
 const { ejecutarVerificacionMoraAutomatica } = require('./services/moraService');
+
+// Chequeo automático de pólizas impagas (caducidad), para el otro cron job
+const { ejecutarVerificacionPolizasVencidas } = require('./services/polizaService');
 
 // ---- MIDDLEWARES GLOBALES ----
 // Un middleware es código que se ejecuta ANTES de llegar a las rutas.
@@ -67,6 +72,8 @@ app.use('/api', cuentaRoutes);
 app.use('/api', prestamoRoutes);
 app.use('/api', cambioRoutes);
 app.use('/api', tarjetaRoutes);
+app.use('/api', seguroRoutes);
+app.use('/api', reservaRoutes);
 
 // Esta ruta especial permite leer el contenido de cualquier tabla de Supabase
 // Ejemplo: GET /api/tablas/personas → devuelve todas las personas
@@ -106,4 +113,14 @@ cron.schedule('0 6 * * *', async () => {
     console.log('📋 Verificación automática de préstamos vencidos ejecutándose...');
     const { candidatos, reportados } = await ejecutarVerificacionMoraAutomatica();
     console.log(`📋 Préstamos vencidos revisados: ${candidatos}, reportados en mora: ${reportados}`);
+});
+
+// ---- CRON JOB: CADUCIDAD AUTOMÁTICA DE PÓLIZAS IMPAGAS ----
+// Una vez por día busca pólizas ACTIVAS cuya prima venció hace más de
+// DIAS_GRACIA_POLIZA días y las cancela (no se informa a la Central de
+// Deudores: no pagar un seguro no es una deuda).
+cron.schedule('0 6 * * *', async () => {
+    console.log('🛡️  Verificación automática de pólizas vencidas ejecutándose...');
+    const { candidatas, canceladas } = await ejecutarVerificacionPolizasVencidas();
+    console.log(`🛡️  Pólizas vencidas revisadas: ${candidatas}, canceladas: ${canceladas}`);
 });

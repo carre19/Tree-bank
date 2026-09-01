@@ -4,16 +4,14 @@ import TreeBankLogo from './TreeBankLogo';
 import Icon from './Icon';
 import ChatBot from './ChatBot';
 
-// Sidebar (desktop): todo el menu, hay lugar de sobra
+// Sidebar (desktop): solo lo esencial. El resto (Depositar, Cambio,
+// Prestamos, Tarjetas, Seguros, Reservas) se accede desde los accesos
+// rapidos del Inicio, para no repetir todo en dos lugares.
 const NAV_ITEMS_CLIENTE = [
   { to: '/dashboard',      icon: 'home',    label: 'Inicio' },
   { to: '/transferencias', icon: 'send',    label: 'Transferir' },
-  { to: '/depositos',      icon: 'deposit', label: 'Depositar' },
-  { to: '/cambio',         icon: 'swap',    label: 'Cambio' },
-  { to: '/prestamos',      icon: 'loan',    label: 'Préstamos' },
-  { to: '/tarjetas',       icon: 'card',    label: 'Tarjetas' },
-  { to: '/historial',      icon: 'history', label: 'Movimientos' },
   { to: '/perfil',         icon: 'user',    label: 'Mi perfil' },
+  { to: '/historial',      icon: 'history', label: 'Movimientos' },
 ];
 
 // Bottom nav (mobile): solo lo esencial. El resto (Depositar, Cambio,
