@@ -3,7 +3,59 @@ import { useAuth } from '../context/AuthContext';
 import AppLayout from '../components/AppLayout';
 import Icon from '../components/Icon';
 import api from '../api/api';
-import { CATEGORIAS, infoMovimiento, categoriasPresentes } from '../data/categoriasMovimiento';
+import { CATEGORIAS, infoMovimiento, categoriasPresentes, agruparPorCategoria } from '../data/categoriasMovimiento';
+
+const fmtMonto = (v) => Number(v).toLocaleString('es-AR', { minimumFractionDigits: 2 });
+
+// Rueda de categorías al estilo Mercado Pago: un anillo armado con conic-gradient
+// (un color por categoría, proporcional a lo que representa del total) y el
+// total en el centro. Se usa una para gastos y otra para ingresos.
+function RuedaCategorias({ titulo, subtitulo, segmentos, total }) {
+  const gradiente = (() => {
+    let acumulado = 0;
+    const stops = segmentos.map((s) => {
+      const inicio = acumulado;
+      acumulado += (s.total / total) * 100;
+      return `${s.color} ${inicio}% ${acumulado}%`;
+    });
+    return `conic-gradient(${stops.join(', ')})`;
+  })();
+
+  return (
+    <div className="wheel-card">
+      <h3 className="wheel-title">{titulo}</h3>
+      <p className="wheel-sub">{subtitulo}</p>
+
+      {segmentos.length === 0 ? (
+        <div className="wheel-empty">
+          <div className="wheel-ring wheel-ring-empty" />
+          <p>Sin movimientos para mostrar</p>
+        </div>
+      ) : (
+        <>
+          <div className="wheel-wrap">
+            <div className="wheel-ring" style={{ background: gradiente }} />
+            <div className="wheel-hole">
+              <span className="wheel-hole-value">$ {fmtMonto(total)}</span>
+              <span className="wheel-hole-label">Total</span>
+            </div>
+          </div>
+          <div className="wheel-legend">
+            {segmentos.map((s) => (
+              <div className="wheel-legend-item" key={s.categoria}>
+                <span className="wheel-legend-dot" style={{ background: s.color }} />
+                <Icon name={s.icon} size={14} />
+                <span className="wheel-legend-label">{s.label}</span>
+                <span className="wheel-legend-pct">{Math.round((s.total / total) * 100)}%</span>
+                <span className="wheel-legend-amount">$ {fmtMonto(s.total)}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function HistorialPage() {
   const { usuario } = useAuth();
@@ -43,7 +95,7 @@ export default function HistorialPage() {
       ' · ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
   };
 
-  const fmt = (v) => Number(v).toLocaleString('es-AR', { minimumFractionDigits: 2 });
+  const fmt = fmtMonto;
 
   const totalIngresos = movimientos
     .filter(m => infoMovimiento(m.tipo_movimiento).signo === 'in')
@@ -52,6 +104,15 @@ export default function HistorialPage() {
   const totalEgresos = movimientos
     .filter(m => infoMovimiento(m.tipo_movimiento).signo === 'out')
     .reduce((sum, m) => sum + Number(m.monto), 0);
+
+  // Ruedas de gastos e ingresos por categoría (las transferencias quedan afuera,
+  // se muestran aparte en su propia lista) y total de cada una para el centro del anillo
+  const gastosPorCategoria = agruparPorCategoria(movimientos, 'out');
+  const ingresosPorCategoria = agruparPorCategoria(movimientos, 'in');
+  const totalGastosCategorizados = gastosPorCategoria.reduce((sum, s) => sum + s.total, 0);
+  const totalIngresosCategorizados = ingresosPorCategoria.reduce((sum, s) => sum + s.total, 0);
+
+  const transferencias = movimientos.filter(m => infoMovimiento(m.tipo_movimiento).categoria === 'TRANSFERENCIAS');
 
   // Chips de categoría: solo se muestran las que de verdad aparecen en el historial
   const categoriasChip = categoriasPresentes(movimientos);
@@ -112,6 +173,56 @@ export default function HistorialPage() {
           </div>
         </div>
       </div>
+
+      {/* Ruedas de gastos e ingresos por categoría, al estilo Mercado Pago */}
+      {!cargando && movimientos.length > 0 && (
+        <div className="wheels-grid anim-up-1">
+          <RuedaCategorias
+            titulo="Gastos"
+            subtitulo="En qué se fue la plata"
+            segmentos={gastosPorCategoria}
+            total={totalGastosCategorizados}
+          />
+          <RuedaCategorias
+            titulo="Ingresos"
+            subtitulo="De dónde vino la plata"
+            segmentos={ingresosPorCategoria}
+            total={totalIngresosCategorizados}
+          />
+        </div>
+      )}
+
+      {/* Transferencias, siempre abajo de las ruedas */}
+      {!cargando && transferencias.length > 0 && (
+        <div className="card anim-up-1" style={{ marginBottom: 24 }}>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+            <Icon name="send" size={16} style={{ marginRight: 6, verticalAlign: -3 }} />
+            Transferencias
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {transferencias.map((mov) => {
+              const info = infoMovimiento(mov.tipo_movimiento);
+              const dir = info.signo === 'in' ? 'in' : info.signo === 'out' ? 'out' : 'warn';
+              return (
+                <div key={mov.id_movimiento} className="tx-item">
+                  <div className={`tx-icon ${dir === 'warn' ? '' : dir}`} style={dir === 'warn' ? { background: 'var(--warn-bg)', color: 'var(--warn)', border: '1px solid var(--warn-border)' } : undefined}>
+                    <Icon name={info.icon} size={19} />
+                  </div>
+                  <div className="tx-info">
+                    <p className="tx-desc">{mov.descripcion || info.label}</p>
+                    <p className="tx-date">{formatFecha(mov.fecha)}</p>
+                  </div>
+                  <div className="tx-right">
+                    <p className={`tx-amount ${dir === 'warn' ? '' : dir}`} style={dir === 'warn' ? { color: 'var(--warn)' } : undefined}>
+                      {info.signo === 'in' ? '+' : info.signo === 'out' ? '-' : ''}$ {fmt(mov.monto)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Gráfico de flujo de dinero */}
       {!cargando && dias.length > 0 && (

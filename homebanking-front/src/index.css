@@ -1431,6 +1431,47 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
 }
 
 /* ════════════════════════════════════════════════════════════════
+   RUEDAS DE GASTOS / INGRESOS POR CATEGORÍA (estilo Mercado Pago)
+   ════════════════════════════════════════════════════════════════ */
+.wheels-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.wheel-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 16px);
+  padding: 20px;
+  box-shadow: var(--shadow-card, none);
+}
+.wheel-title { font-family: var(--font-display); font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+.wheel-sub { color: var(--text-3); font-size: 12px; margin-bottom: 16px; }
+.wheel-wrap { position: relative; width: 148px; height: 148px; margin: 0 auto 18px; }
+.wheel-ring {
+  width: 100%; height: 100%; border-radius: 50%;
+  animation: wheelFadeIn 0.5s var(--ease-out) both;
+}
+@keyframes wheelFadeIn { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+.wheel-ring-empty { background: var(--surface-2); border: 1px dashed var(--border); }
+.wheel-hole {
+  position: absolute; inset: 20px;
+  background: var(--surface);
+  border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center;
+}
+.wheel-hole-value { font-family: var(--font-display); font-size: 14px; font-weight: 700; line-height: 1.2; }
+.wheel-hole-label { font-size: 10px; color: var(--text-3); margin-top: 2px; }
+.wheel-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 8px 0 4px; color: var(--text-3); font-size: 13px; }
+.wheel-empty .wheel-ring-empty { width: 100px; height: 100px; }
+.wheel-legend { display: flex; flex-direction: column; gap: 10px; }
+.wheel-legend-item { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-2); }
+.wheel-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.wheel-legend-label { flex: 1; }
+.wheel-legend-pct { color: var(--text-3); font-size: 11.5px; }
+.wheel-legend-amount { font-weight: 700; color: var(--text); min-width: 78px; text-align: right; }
+@media (max-width: 640px) {
+  .wheels-grid { grid-template-columns: 1fr; }
+}
+
+/* ════════════════════════════════════════════════════════════════
    TABS + LISTA DE CONTACTOS
    ════════════════════════════════════════════════════════════════ */
 .tabs { display: flex; border-bottom: 1.5px solid var(--border); margin-bottom: 24px; }

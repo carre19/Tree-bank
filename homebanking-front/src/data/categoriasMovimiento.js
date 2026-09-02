@@ -4,14 +4,15 @@
 // Vive acá y no en cada página porque Movimientos y el resumen del Dashboard
 // necesitan exactamente el mismo criterio.
 
+// color: usado en las ruedas de Movimientos (gastos/ingresos por categoría)
 export const CATEGORIAS = {
-  TRANSFERENCIAS: { label: 'Transferencias', icon: 'send' },
-  DEPOSITOS:      { label: 'Depósitos',      icon: 'deposit' },
-  TARJETA:        { label: 'Tarjeta',        icon: 'card' },
-  PRESTAMOS:      { label: 'Préstamos',      icon: 'loan' },
-  SEGUROS:        { label: 'Seguros',        icon: 'insurance' },
-  SERVICIOS:      { label: 'Servicios',      icon: 'receipt' },
-  CAMBIO:         { label: 'Cambio de divisa', icon: 'swap' },
+  TRANSFERENCIAS: { label: 'Transferencias', icon: 'send',     color: '#3B82F6' },
+  DEPOSITOS:      { label: 'Depósitos',      icon: 'deposit',  color: '#10B981' },
+  TARJETA:        { label: 'Tarjeta',        icon: 'card',     color: '#F59E0B' },
+  PRESTAMOS:      { label: 'Préstamos',      icon: 'loan',     color: '#8B5CF6' },
+  SEGUROS:        { label: 'Seguros',        icon: 'insurance', color: '#EC4899' },
+  SERVICIOS:      { label: 'Servicios',      icon: 'receipt',  color: '#06B6D4' },
+  CAMBIO:         { label: 'Cambio de divisa', icon: 'swap',   color: '#F97316' },
 };
 
 // signo: 'in' (suma), 'out' (resta), 'neutro' (no llegó a mover plata)
@@ -44,4 +45,18 @@ export function infoMovimiento(tipo_movimiento) {
 export function categoriasPresentes(movimientos) {
   const set = new Set(movimientos.map((m) => infoMovimiento(m.tipo_movimiento).categoria));
   return Object.keys(CATEGORIAS).filter((c) => set.has(c));
+}
+
+// Agrupa el total gastado/recibido por categoría, dejando afuera Transferencias
+// (esas se muestran aparte, en su propia lista) — para armar las ruedas al estilo Mercado Pago
+export function agruparPorCategoria(movimientos, signo) {
+  const totales = {};
+  movimientos.forEach((m) => {
+    const info = infoMovimiento(m.tipo_movimiento);
+    if (info.signo !== signo || info.categoria === 'TRANSFERENCIAS') return;
+    totales[info.categoria] = (totales[info.categoria] || 0) + Number(m.monto);
+  });
+  return Object.entries(totales)
+    .map(([categoria, total]) => ({ categoria, total, ...CATEGORIAS[categoria] }))
+    .sort((a, b) => b.total - a.total);
 }
