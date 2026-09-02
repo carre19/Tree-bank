@@ -7,6 +7,48 @@ import { CATEGORIAS, infoMovimiento, categoriasPresentes, agruparPorCategoria } 
 
 const fmtMonto = (v) => Number(v).toLocaleString('es-AR', { minimumFractionDigits: 2 });
 
+const PERIODOS = [
+  { id: 'todo', label: 'Todo' },
+  { id: 'dia', label: 'Hoy' },
+  { id: 'semana', label: 'Esta semana' },
+  { id: 'mes', label: 'Este mes' },
+  { id: 'personalizado', label: 'Elegir fechas' },
+];
+
+// Lunes 00:00 de la semana de la fecha dada (semana estilo calendario, no "últimos 7 días")
+function inicioSemana(fecha) {
+  const d = new Date(fecha);
+  const diaSemana = d.getDay(); // 0 = domingo
+  const diff = diaSemana === 0 ? -6 : 1 - diaSemana;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+// true si el movimiento cae dentro del período elegido (para "personalizado",
+// desde/hasta son strings yyyy-mm-dd que salen de un <input type="date">)
+function enPeriodo(fechaMov, periodo, desde, hasta) {
+  if (periodo === 'todo') return true;
+  const fecha = new Date(fechaMov);
+  if (periodo === 'personalizado') {
+    if (desde && fecha < new Date(`${desde}T00:00:00`)) return false;
+    if (hasta && fecha > new Date(`${hasta}T23:59:59`)) return false;
+    return true;
+  }
+  const ahora = new Date();
+  if (periodo === 'dia') return fecha.toDateString() === ahora.toDateString();
+  if (periodo === 'semana') {
+    const inicio = inicioSemana(ahora);
+    const fin = new Date(inicio);
+    fin.setDate(fin.getDate() + 7);
+    return fecha >= inicio && fecha < fin;
+  }
+  if (periodo === 'mes') {
+    return fecha.getFullYear() === ahora.getFullYear() && fecha.getMonth() === ahora.getMonth();
+  }
+  return true;
+}
+
 // Rueda de categorías al estilo Mercado Pago: un anillo armado con conic-gradient
 // (un color por categoría, proporcional a lo que representa del total) y el
 // total en el centro. Se usa una para gastos y otra para ingresos.
@@ -62,6 +104,9 @@ export default function HistorialPage() {
   const [movimientos, setMovimientos] = useState([]);
   const [cargando, setCargando]       = useState(true);
   const [filtro, setFiltro]           = useState('TODOS');
+  const [periodo, setPeriodo]         = useState('todo');
+  const [desde, setDesde]             = useState('');
+  const [hasta, setHasta]             = useState('');
 
   useEffect(() => {
     const cargar = async () => {
@@ -97,32 +142,36 @@ export default function HistorialPage() {
 
   const fmt = fmtMonto;
 
-  const totalIngresos = movimientos
+  // Todo lo de abajo (resumen, ruedas, transferencias, gráfico y lista) se calcula
+  // sobre los movimientos ya recortados al período elegido arriba
+  const movimientosPeriodo = movimientos.filter(m => enPeriodo(m.fecha, periodo, desde, hasta));
+
+  const totalIngresos = movimientosPeriodo
     .filter(m => infoMovimiento(m.tipo_movimiento).signo === 'in')
     .reduce((sum, m) => sum + Number(m.monto), 0);
 
-  const totalEgresos = movimientos
+  const totalEgresos = movimientosPeriodo
     .filter(m => infoMovimiento(m.tipo_movimiento).signo === 'out')
     .reduce((sum, m) => sum + Number(m.monto), 0);
 
   // Ruedas de gastos e ingresos por categoría (las transferencias quedan afuera,
   // se muestran aparte en su propia lista) y total de cada una para el centro del anillo
-  const gastosPorCategoria = agruparPorCategoria(movimientos, 'out');
-  const ingresosPorCategoria = agruparPorCategoria(movimientos, 'in');
+  const gastosPorCategoria = agruparPorCategoria(movimientosPeriodo, 'out');
+  const ingresosPorCategoria = agruparPorCategoria(movimientosPeriodo, 'in');
   const totalGastosCategorizados = gastosPorCategoria.reduce((sum, s) => sum + s.total, 0);
   const totalIngresosCategorizados = ingresosPorCategoria.reduce((sum, s) => sum + s.total, 0);
 
-  const transferencias = movimientos.filter(m => infoMovimiento(m.tipo_movimiento).categoria === 'TRANSFERENCIAS');
+  const transferencias = movimientosPeriodo.filter(m => infoMovimiento(m.tipo_movimiento).categoria === 'TRANSFERENCIAS');
 
-  // Chips de categoría: solo se muestran las que de verdad aparecen en el historial
-  const categoriasChip = categoriasPresentes(movimientos);
+  // Chips de categoría: solo se muestran las que de verdad aparecen en el período elegido
+  const categoriasChip = categoriasPresentes(movimientosPeriodo);
   const movFiltrados = filtro === 'TODOS'
-    ? movimientos
-    : movimientos.filter(m => infoMovimiento(m.tipo_movimiento).categoria === filtro);
+    ? movimientosPeriodo
+    : movimientosPeriodo.filter(m => infoMovimiento(m.tipo_movimiento).categoria === filtro);
 
   // ── Datos del gráfico: ingresos vs egresos agrupados por día (últimos 7 días con actividad)
   const porDia = {};
-  movimientos.forEach(m => {
+  movimientosPeriodo.forEach(m => {
     const dia = new Date(m.fecha).toISOString().slice(0, 10);
     if (!porDia[dia]) porDia[dia] = { in: 0, out: 0 };
     const signo = infoMovimiento(m.tipo_movimiento).signo;
@@ -142,6 +191,31 @@ export default function HistorialPage() {
         <h1 className="page-title">Movimientos</h1>
         <p className="page-sub">Todo lo que entró y salió de tu cuenta, catalogado por tipo de gasto.</p>
       </div>
+
+      {/* Período: día, semana, mes, todo o un rango de fechas a elección */}
+      <div className="chips anim-up-1">
+        {PERIODOS.map((p) => (
+          <button
+            key={p.id}
+            className={`chip${periodo === p.id ? ' active' : ''}`}
+            onClick={() => setPeriodo(p.id)}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      {periodo === 'personalizado' && (
+        <div className="periodo-rango anim-up-1">
+          <label>
+            Desde
+            <input type="date" className="input" value={desde} max={hasta || undefined} onChange={(e) => setDesde(e.target.value)} />
+          </label>
+          <label>
+            Hasta
+            <input type="date" className="input" value={hasta} min={desde || undefined} onChange={(e) => setHasta(e.target.value)} />
+          </label>
+        </div>
+      )}
 
       {/* Resumen */}
       <div className="stats-grid anim-up-1">
@@ -169,13 +243,13 @@ export default function HistorialPage() {
           </div>
           <div>
             <p className="stat-label">Movimientos</p>
-            <p className="stat-value">{movimientos.length}</p>
+            <p className="stat-value">{movimientosPeriodo.length}</p>
           </div>
         </div>
       </div>
 
       {/* Ruedas de gastos e ingresos por categoría, al estilo Mercado Pago */}
-      {!cargando && movimientos.length > 0 && (
+      {!cargando && movimientosPeriodo.length > 0 && (
         <div className="wheels-grid anim-up-1">
           <RuedaCategorias
             titulo="Gastos"
