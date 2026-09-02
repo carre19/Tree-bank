@@ -113,6 +113,14 @@
 .app-shell .contact-avatar { background: rgba(255, 255, 255, 0.1); color: var(--text); }
 .app-shell .row-card-icon { background: rgba(94, 234, 212, 0.12); border-color: rgba(94, 234, 212, 0.3); }
 .app-shell .avatar-edit-btn { background: var(--navy-2); }
+.app-shell .recipient-card {
+  background: rgba(45, 212, 191, 0.1);
+  border-color: rgba(45, 212, 191, 0.3);
+}
+.app-shell .recipient-name { color: var(--text); }
+.app-shell .amount-box:focus-within { background: #103d29; }
+.app-shell .input:focus { background: #103d29; }
+.app-shell .input:hover:not(:focus) { border-color: rgba(255, 255, 255, 0.28); }
 .app-shell .receipt { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.2); }
 .app-shell .modal { background: var(--surface); border-color: var(--border-soft); }
 .app-shell .empty-icon { background: rgba(255, 255, 255, 0.06); }
