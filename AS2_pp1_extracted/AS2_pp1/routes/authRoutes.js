@@ -21,6 +21,9 @@ router.post('/auth/register', authController.register);
 // POST /api/auth/login - Inicia sesion y devuelve un token JWT
 router.post('/auth/login', authController.login);
 
+// POST /api/auth/olvide-password - Recupera el acceso verificando DNI + email
+router.post('/auth/olvide-password', authController.olvidePassword);
+
 // GET /api/auth/me - Datos basicos del usuario (requiere token)
 router.get('/auth/me', verificarToken, authController.me);
 

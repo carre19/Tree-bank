@@ -48,6 +48,13 @@ exports.crearPersona = async (req, res) => {
     }
 
     try {
+        // Antes de llamar al Banco Central: si ese DNI ya tiene una cuenta en Tree Bank
+        // no tiene sentido abrir una segunda (una persona = una cuenta en nuestro banco).
+        const yaExiste = await Persona.existePorDni(dni);
+        if (yaExiste) {
+            return res.status(409).json({ error: `Ya existe una cuenta en Tree Bank registrada con el DNI ${dni}. Iniciá sesión o recuperá tu acceso.` });
+        }
+
         const respuestaCentral = await centralBank.post('/persons', {
             nombre, apellido, dni
         });
@@ -76,6 +83,12 @@ exports.crearPersona = async (req, res) => {
         });
 
     } catch (error) {
+        // Red de seguridad por si dos altas con el mismo DNI llegan al mismo tiempo
+        // y ambas pasan el chequeo de arriba: el UNIQUE de la base las frena igual,
+        // así que ese error puntual lo mostramos claro en vez del 500 generico.
+        if (error.code === '23505') {
+            return res.status(409).json({ error: `Ya existe una cuenta en Tree Bank registrada con el DNI ${dni}. Iniciá sesión o recuperá tu acceso.` });
+        }
         const detalle = error.response ? error.response.data : error.message;
         res.status(500).json({ error: 'No se pudo completar el registro', detalle });
     }

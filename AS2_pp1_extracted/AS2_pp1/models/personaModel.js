@@ -17,6 +17,13 @@ const Persona = {
     return rows;
   },
 
+  // Indica si ya existe una persona con ese DNI (se usa antes de abrir una
+  // cuenta nueva: una persona no puede tener dos cuentas en Tree Bank)
+  existePorDni: async (dni) => {
+    const { rows } = await db.query('SELECT 1 FROM personas WHERE dni = $1', [dni]);
+    return rows.length > 0;
+  },
+
   // Busca una cuenta bancaria por su CBU
   // Devuelve la cuenta completa (id_cuenta, saldo, alias, etc.) junto con el dueno
   // (id_persona) y el estado del producto (ACTIVO/BLOQUEADO/CERRADO), o undefined si no existe

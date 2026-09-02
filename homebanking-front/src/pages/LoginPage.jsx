@@ -138,6 +138,10 @@ export default function LoginPage() {
               Recordar mi DNI en este dispositivo
             </label>
 
+            <p className="auth-footer" style={{ margin: '-4px 0 12px', textAlign: 'right' }}>
+              <Link to="/olvide-password">¿Olvidaste tu contraseña?</Link>
+            </p>
+
             {error && (
               <div className="alert alert-error">
                 <Icon name="alert" size={16} /> {error}

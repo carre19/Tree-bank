@@ -11,10 +11,10 @@
   --border:      #dbe4ec;
   --border-soft: #e8eef4;
 
-  /* Azul marino — estructura y jerarquía */
-  --navy:        #0e2a43;
-  --navy-2:      #16405f;
-  --navy-deep:   #081c2e;
+  /* Verde oscuro premium — estructura y jerarquía (chrome oscuro: sidebar, auth, splash) */
+  --navy:        #0c2e1f;
+  --navy-2:      #12523a;
+  --navy-deep:   #051a10;
 
   /* Marca — esmeralda vibrante */
   --green:       #10b981;
@@ -312,6 +312,18 @@ input, select, textarea { font-family: inherit; }
   border: 1.5px solid rgba(255, 255, 255, 0.18);
   pointer-events: none;
 }
+/* Brillo diagonal — sheen de tarjeta premium, tipo tarjeta física */
+.balance-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0) 28%,
+    rgba(255, 255, 255, 0) 68%,
+    rgba(255, 255, 255, 0.1) 100%);
+  pointer-events: none;
+}
 .balance-label {
   font-size: 12px;
   font-weight: 700;
@@ -379,22 +391,17 @@ input, select, textarea { font-family: inherit; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 24px 12px;
+  gap: 10px;
+  padding: 6px 4px;
   border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--border-soft);
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.25s var(--ease-spring), border-color 0.2s var(--ease-out),
-              box-shadow 0.25s var(--ease-out);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  transition: transform 0.25s var(--ease-spring);
   cursor: pointer;
 }
-.quick-action:hover {
-  transform: translateY(-4px);
-  border-color: rgba(5, 150, 105, 0.3);
-  box-shadow: 0 16px 34px -14px var(--green-glow);
-}
-.quick-action:active { transform: translateY(-1px) scale(0.98); }
+.quick-action:hover { transform: translateY(-3px); }
+.quick-action:active { transform: translateY(0) scale(0.96); }
 .quick-action:focus-visible,
 .chip:focus-visible,
 .row-card:focus-visible,
@@ -406,19 +413,19 @@ input, select, textarea { font-family: inherit; }
   outline-offset: 2px;
 }
 .quick-action:hover .quick-action-icon {
-  transform: scale(1.1) rotate(-4deg);
-  box-shadow: 0 10px 22px -10px var(--green-glow);
+  transform: scale(1.06);
+  box-shadow: 0 14px 28px -10px var(--green-glow), inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 .quick-action-icon {
-  width: 50px; height: 50px;
-  border-radius: 15px;
+  width: 56px; height: 56px;
+  border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #e3f8ee, #d2f3e3);
-  border: 1px solid #bde5d6;
-  color: var(--green-bright);
+  background: var(--grad-brand);
+  color: #ffffff;
+  box-shadow: 0 10px 22px -10px var(--green-glow), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   transition: transform 0.3s var(--ease-spring), box-shadow 0.3s var(--ease-out);
 }
-.quick-action-label { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: 0.01em; }
+.quick-action-label { font-size: 12.5px; font-weight: 600; color: var(--text-2); letter-spacing: 0.01em; }
 
 /* Botones */
 .btn-primary {
@@ -768,7 +775,7 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   overflow: hidden;
   background:
     radial-gradient(ellipse 70% 55% at 85% -5%, rgba(5, 150, 105, 0.35) 0%, transparent 55%),
-    linear-gradient(160deg, var(--navy) 0%, var(--navy-deep) 70%, #06141f 100%);
+    linear-gradient(160deg, var(--navy) 0%, var(--navy-deep) 70%, #03130b 100%);
 }
 /* Manchas de luz fijas (no "respiran"): dan profundidad sin distraer */
 .auth-blob {
@@ -1090,7 +1097,7 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   justify-content: center;
   overflow: hidden;
   background:
-    radial-gradient(ellipse 90% 70% at 50% 30%, var(--navy-2) 0%, var(--navy) 45%, #051422 100%);
+    radial-gradient(ellipse 90% 70% at 50% 30%, var(--navy-2) 0%, var(--navy) 45%, #03130b 100%);
   animation: splashIn 0.4s ease both;
   transition: opacity 0.6s ease, transform 0.6s ease;
 }

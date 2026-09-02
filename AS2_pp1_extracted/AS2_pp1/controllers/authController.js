@@ -178,6 +178,45 @@ exports.login = async (req, res) => {
     }
 };
 
+// POST /api/auth/olvide-password - Recupera el acceso sin pasar por email
+// No hay ningun servicio de correo configurado en el proyecto, asi que en vez
+// de mandar un link de recuperacion, usamos el propio email cargado en el
+// perfil (el que la persona puso en /auth/register) como prueba de identidad:
+// si DNI + email coinciden, puede definir una contrasena nueva en el momento.
+// Si la persona nunca cargo un email (ej: datos de prueba del seed), no hay
+// forma de verificarla por esta via y no puede recuperar el acceso asi.
+exports.olvidePassword = async (req, res) => {
+    const { dni, email, password_nueva } = req.body;
+
+    if (!dni || !email || !password_nueva) {
+        return res.status(400).json({ error: 'DNI, email y password_nueva son requeridos' });
+    }
+    if (password_nueva.length < 6) {
+        return res.status(400).json({ error: 'La nueva password debe tener al menos 6 caracteres' });
+    }
+
+    try {
+        const { rows } = await db.query('SELECT * FROM personas WHERE dni = $1', [dni]);
+        const persona = rows[0];
+
+        // Mismo mensaje generico sin importar cual dato fallo (DNI inexistente,
+        // sin email cargado, o email que no coincide): por seguridad, no
+        // revelamos cual de los dos esta mal
+        const noCoincide = !persona || !persona.email || persona.email.trim().toLowerCase() !== email.trim().toLowerCase();
+        if (noCoincide) {
+            return res.status(401).json({ error: 'El DNI y el email no coinciden con ningun registro' });
+        }
+
+        const nuevo_hash = await bcrypt.hash(password_nueva, 10);
+        await db.query('UPDATE personas SET password_hash = $1 WHERE dni = $2', [nuevo_hash, dni]);
+
+        res.json({ mensaje: 'Contrasena actualizada correctamente. Ya podes iniciar sesion.' });
+
+    } catch (error) {
+        res.status(500).json({ error: 'Error al recuperar la contrasena', detalle: error.message });
+    }
+};
+
 // GET /api/auth/me - Datos del usuario logueado
 exports.me = async (req, res) => {
     try {
