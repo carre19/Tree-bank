@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import TreeBankLogo from '../components/TreeBankLogo';
 import Icon from '../components/Icon';
 import api from '../api/api';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function LoginPage() {
   // Si el usuario eligió "recordar mi DNI", lo precargamos
@@ -42,6 +43,7 @@ export default function LoginPage() {
     <div className="auth-bg">
       <div className="auth-blob b1" />
       <div className="auth-blob b2" />
+      <ThemeToggle flotante />
 
       <div className="auth-split">
         {/* ── Panel de marca (desktop) ── */}

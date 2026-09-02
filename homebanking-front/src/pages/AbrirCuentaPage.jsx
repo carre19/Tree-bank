@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import TreeBankLogo from '../components/TreeBankLogo';
 import Icon from '../components/Icon';
 import api from '../api/api';
+import ThemeToggle from '../components/ThemeToggle';
 
 // Alta de cliente (punto 4.1 de la documentación, paso 1):
 // crea la persona en el Banco Central, que asigna CBU y alias.
@@ -38,6 +39,7 @@ export default function AbrirCuentaPage() {
     <div className="auth-bg">
       <div className="auth-blob b1" />
       <div className="auth-blob b2" />
+      <ThemeToggle flotante />
 
       <div className="auth-card">
         <div className="auth-logo">

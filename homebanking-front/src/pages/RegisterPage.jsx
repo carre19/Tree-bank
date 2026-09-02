@@ -3,6 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import TreeBankLogo from '../components/TreeBankLogo';
 import Icon from '../components/Icon';
 import api from '../api/api';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function RegisterPage() {
   const location = useLocation();
@@ -50,6 +51,7 @@ export default function RegisterPage() {
     <div className="auth-bg">
       <div className="auth-blob b1" />
       <div className="auth-blob b2" />
+      <ThemeToggle flotante />
 
       <div className="auth-card">
         <div className="auth-logo">

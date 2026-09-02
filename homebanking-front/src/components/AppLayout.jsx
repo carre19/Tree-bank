@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import TreeBankLogo from './TreeBankLogo';
 import Icon from './Icon';
 import ChatBot from './ChatBot';
+import ThemeToggle from './ThemeToggle';
 
 // Sidebar (desktop): solo lo esencial. El resto (Depositar, Cambio,
 // Prestamos, Tarjetas, Seguros, Reservas) se accede desde los accesos
@@ -71,17 +72,21 @@ export default function AppLayout({ children }) {
           ))}
         </nav>
 
-        <div className="sidebar-user">
-          {avatar}
-          <div className="sidebar-user-info">
-            <div className="sidebar-user-name">
-              {usuario?.nombre} {usuario?.apellido || ''}
+        <div className="sidebar-foot">
+          <ThemeToggle />
+
+          <div className="sidebar-user">
+            {avatar}
+            <div className="sidebar-user-info">
+              <div className="sidebar-user-name">
+                {usuario?.nombre} {usuario?.apellido || ''}
+              </div>
+              <div className="sidebar-user-dni">{usuario?.esAdmin ? 'Administrador' : `DNI ${usuario?.dni}`}</div>
             </div>
-            <div className="sidebar-user-dni">{usuario?.esAdmin ? 'Administrador' : `DNI ${usuario?.dni}`}</div>
+            <button className="btn-icon-ghost" onClick={handleLogout} title="Cerrar sesión">
+              <Icon name="logout" size={17} />
+            </button>
           </div>
-          <button className="btn-icon-ghost" onClick={handleLogout} title="Cerrar sesión">
-            <Icon name="logout" size={17} />
-          </button>
         </div>
       </aside>
 
@@ -94,6 +99,7 @@ export default function AppLayout({ children }) {
             <span className="topbar-brand-txt">TREE BANK</span>
           </div>
           <div className="topbar-right">
+            <ThemeToggle />
             {avatar}
             <button className="btn-icon-ghost" onClick={handleLogout} title="Cerrar sesión">
               <Icon name="logout" size={17} />
