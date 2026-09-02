@@ -23,7 +23,12 @@ export default function DashboardPage() {
   const [errorCarga, setErrorCarga] = useState('');
   const [abriendoUsd, setAbriendoUsd] = useState(false);
   const [errorUsd, setErrorUsd]     = useState('');
+  const [tarjetas, setTarjetas]     = useState([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    api.get('/tarjetas').then((res) => setTarjetas(res.data)).catch(() => {});
+  }, []);
 
   const cargarCuentas = async () => {
     try {
@@ -83,19 +88,62 @@ export default function DashboardPage() {
           <div className="skeleton" style={{ width: 220, height: 46 }} />
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {cuentas.map((c, i) => (
-            <TarjetaCuenta key={c.cbu} cuenta={c} claseAnim={`anim-up-${Math.min(i + 1, 3)}`} onAliasActualizado={cargarCuentas} />
-          ))}
+        <>
+          {/* Panel fusionado: el degradé de la cuenta sigue hasta los accesos
+              rapidos, en vez de cortar en una tarjeta separada (como el Home
+              de una app de fintech, donde las acciones "viven" en el header) */}
+          <div className="hero-panel anim-up-1">
+            {cuentas.map((c) => (
+              <TarjetaCuenta key={c.cbu} cuenta={c} claseAnim="" onAliasActualizado={cargarCuentas} />
+            ))}
+
+            <div className="quick-panel">
+              <div className="quick-panel-label">Acciones rápidas</div>
+              <div className="quick-grid">
+                {ACCIONES.map((a) => (
+                  <div key={a.to} className="quick-action" onClick={() => navigate(a.to)} role="button" tabIndex={0}
+                    onKeyDown={(e) => e.key === 'Enter' && navigate(a.to)}>
+                    <div className="quick-action-icon">
+                      <Icon name={a.icon} size={22} />
+                    </div>
+                    <span className="quick-action-label">{a.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="cards-preview dash-panel anim-up-2">
+            <button className="cards-preview-head" onClick={() => navigate('/tarjetas')}>
+              <span>Tarjetas</span>
+              <Icon name="chevronRight" size={16} />
+            </button>
+            <div className="cards-preview-row">
+              {tarjetas.slice(0, 2).map((t) => (
+                <button
+                  key={t.id_tarjeta}
+                  className={`card-swatch ${t.marca === 'MASTERCARD' ? 'card-swatch-mc' : ''}`}
+                  onClick={() => navigate('/tarjetas')}
+                >
+                  <span className="card-swatch-brand">{t.marca}</span>
+                  <span className="card-swatch-num">•••• {String(t.numero_tarjeta).slice(-4)}</span>
+                </button>
+              ))}
+              <button className="card-swatch card-swatch-add" onClick={() => navigate('/tarjetas')}>
+                <span className="card-swatch-plus">+</span>
+                <span>{tarjetas.length ? 'Nueva tarjeta' : 'Emitir tarjeta'}</span>
+              </button>
+            </div>
+          </div>
 
           {!tieneUsd && (
-            <div className="card anim-up-2" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <div className="dash-panel anim-up-2" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginTop: 18 }}>
               <div className="quick-action-icon" style={{ flexShrink: 0 }}>
                 <Icon name="loan" size={22} />
               </div>
               <div style={{ flex: 1, minWidth: 200 }}>
                 <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>Abrí una caja en dólares</p>
-                <p style={{ color: 'var(--text-2)', fontSize: 13 }}>
+                <p className="dash-panel-sub" style={{ fontSize: 13 }}>
                   Tené un CBU y alias propios en USD, independientes de tu cuenta en pesos.
                 </p>
               </div>
@@ -105,35 +153,21 @@ export default function DashboardPage() {
             </div>
           )}
           {errorUsd && (
-            <div className="alert alert-error" style={{ marginBottom: 0 }}>
+            <div className="alert alert-error" style={{ marginBottom: 0, marginTop: 18 }}>
               <Icon name="alert" size={16} /> <span>{errorUsd}</span>
             </div>
           )}
-        </div>
+        </>
       )}
 
-      {/* Acciones rápidas */}
-      <h3 className="section-title anim-up-2">Acciones rápidas</h3>
-      <div className="quick-grid anim-up-2">
-        {ACCIONES.map((a) => (
-          <div key={a.to} className="quick-action" onClick={() => navigate(a.to)} role="button" tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && navigate(a.to)}>
-            <div className="quick-action-icon">
-              <Icon name={a.icon} size={22} />
-            </div>
-            <span className="quick-action-label">{a.label}</span>
-          </div>
-        ))}
-      </div>
-
       {/* Banner sostenible */}
-      <div className="card anim-up-3" style={{ marginTop: 28, display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div className="dash-panel anim-up-3" style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 16 }}>
         <div className="quick-action-icon" style={{ flexShrink: 0 }}>
           <Icon name="leaf" size={22} />
         </div>
         <div>
           <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>Banco sostenible</p>
-          <p style={{ color: 'var(--text-2)', fontSize: 13 }}>
+          <p className="dash-panel-sub" style={{ fontSize: 13 }}>
             Tree Bank planta un árbol por cada cuenta activa.
           </p>
         </div>
@@ -212,17 +246,18 @@ function TarjetaCuenta({ cuenta, claseAnim, onAliasActualizado }) {
 
   return (
     <div className={`balance-card ${claseAnim}`}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <p className="balance-label">Caja de ahorro en {cuenta.moneda}</p>
-          <h2 className="balance-amount">
-            {verSaldo ? <>{simbolo} {entero}<span className="cents">,{centavos}</span></> : `${simbolo} ••••••`}
-          </h2>
-        </div>
-        <button className="btn-eye" onClick={() => setVerSaldo(!verSaldo)} title={verSaldo ? 'Ocultar saldo' : 'Mostrar saldo'}>
-          <Icon name={verSaldo ? 'eye' : 'eyeOff'} size={18} />
-        </button>
-      </div>
+      <button
+        className="btn-eye balance-eye"
+        onClick={() => setVerSaldo(!verSaldo)}
+        title={verSaldo ? 'Ocultar saldo' : 'Mostrar saldo'}
+      >
+        <Icon name={verSaldo ? 'eye' : 'eyeOff'} size={18} />
+      </button>
+
+      <p className="balance-label">Caja de ahorro · {cuenta.moneda}</p>
+      <h2 className="balance-amount">
+        {verSaldo ? <>{simbolo} {entero}<span className="cents">,{centavos}</span></> : `${simbolo} ••••••`}
+      </h2>
 
       <div className="balance-meta-row">
         <div>

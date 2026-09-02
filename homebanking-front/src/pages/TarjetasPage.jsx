@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import AppLayout from '../components/AppLayout';
 import Icon from '../components/Icon';
 import api from '../api/api';
+import { useAuth } from '../context/AuthContext';
 
 const fmt = (v) => Number(v).toLocaleString('es-AR', { minimumFractionDigits: 2 });
 
@@ -14,6 +15,8 @@ const ESTADO_LABEL = {
 const enmascarar = (numero) => `•••• •••• •••• ${String(numero).slice(-4)}`;
 
 export default function TarjetasPage() {
+  const { usuario } = useAuth();
+  const usuarioNombre = `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim().toUpperCase() || 'TREE BANK';
   const [tarjetas, setTarjetas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -146,15 +149,32 @@ export default function TarjetasPage() {
               const disponible = Number(t.limite_compra) - Number(t.saldo_consumido);
               return (
                 <div key={t.id_tarjeta} className="card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
-                    <div>
-                      <p style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 17 }}>
-                        {t.marca} · {enmascarar(t.numero_tarjeta)}
-                      </p>
-                      <p style={{ color: 'var(--text-2)', fontSize: 13 }}>
-                        Límite $ {fmt(t.limite_compra)} · Disponible $ {fmt(disponible)}
-                      </p>
+                  <div className={`credit-card ${t.marca === 'MASTERCARD' ? 'credit-card-mc' : ''} ${t.estado !== 'ACTIVO' ? 'credit-card-inactive' : ''}`}>
+                    <div className="credit-card-top">
+                      <span className="credit-card-brand">TREE BANK</span>
+                      <div className="credit-card-chip" />
                     </div>
+                    <div className="credit-card-number">{enmascarar(t.numero_tarjeta)}</div>
+                    <div className="credit-card-bottom">
+                      <div>
+                        <div className="credit-card-label">Titular</div>
+                        <div className="credit-card-value">{usuarioNombre}</div>
+                      </div>
+                      {t.marca === 'MASTERCARD' ? (
+                        <div className="credit-card-mark-mc"><span className="c1" /><span className="c2" /></div>
+                      ) : (
+                        <span className="credit-card-mark">VISA</span>
+                      )}
+                    </div>
+                    {t.estado !== 'ACTIVO' && (
+                      <div className="credit-card-overlay">{ESTADO_LABEL[t.estado] || t.estado}</div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
+                    <p style={{ color: 'var(--text-2)', fontSize: 13 }}>
+                      Límite $ {fmt(t.limite_compra)} · Disponible $ {fmt(disponible)}
+                    </p>
                     <span className={`tx-badge ${badge}`}>{ESTADO_LABEL[t.estado] || t.estado}</span>
                   </div>
 

@@ -16,14 +16,14 @@
   --navy-2:      #12523a;
   --navy-deep:   #051a10;
 
-  /* Marca — esmeralda vibrante */
+  /* Marca — celeste verdoso vibrante (mismo tono para botones y nav) */
   --green:       #10b981;
-  --green-bright:#059669;   /* acento principal para texto */
-  --mint:        #0c8a63;
-  --jade:        #047857;
+  --green-bright:#14b8a6;   /* acento principal para texto y botones */
+  --mint:        #2dd4bf;
+  --jade:        #0f766e;
   --green-deep:  #065f46;
-  --green-glow:  rgba(5, 150, 105, 0.3);
-  --grad-brand:  linear-gradient(120deg, #34d399 0%, #10b981 45%, #059669 100%);
+  --green-glow:  rgba(20, 184, 166, 0.32);
+  --grad-brand:  linear-gradient(120deg, #5eead4 0%, #14b8a6 45%, #0d9488 100%);
 
   /* Texto — tinta azul marino */
   --text:        #102a43;
@@ -61,6 +61,60 @@
   --radius-lg: 22px;
   --sidebar-w: 250px;
 }
+
+/* ════════════════════════════════════════════════════════════════
+   APP SHELL (pantallas despues del login) — mismo verde en todos
+   lados; las tarjetas/secciones se distinguen por borde, no por
+   contraste de fondo. El login/registro sigue con el tema claro.
+   ════════════════════════════════════════════════════════════════ */
+.app-shell {
+  --bg:          #0b2c1c;
+  --bg-soft:     #0b2c1c;
+  --surface:     #0d3322;
+  --surface-2:   #0f3a27;
+  --border:      rgba(255, 255, 255, 0.16);
+  --border-soft: rgba(255, 255, 255, 0.1);
+
+  --text:        #eafbf1;
+  --text-2:      #a3d9c0;
+  --text-3:      #79ad93;
+
+  --ok:          #5eead4;
+  --ok-bg:       rgba(94, 234, 212, 0.14);
+  --ok-border:   rgba(94, 234, 212, 0.35);
+  --info:        #7dd3fc;
+  --info-bg:     rgba(125, 211, 252, 0.14);
+  --info-border: rgba(125, 211, 252, 0.32);
+  --warn:        #fbbf24;
+  --warn-bg:     rgba(251, 191, 36, 0.14);
+  --warn-border: rgba(251, 191, 36, 0.32);
+  --red:         #f87171;
+  --red-bg:      rgba(248, 113, 113, 0.14);
+  --red-border:  rgba(248, 113, 113, 0.32);
+
+  --shadow-sm:   none;
+  --shadow-card: none;
+
+  background: var(--bg);
+}
+.app-shell .alert-error { color: #fca5a5; }
+.app-shell .alert-info  { color: #bae6fd; }
+.app-shell .input,
+.app-shell .amount-box { background: rgba(255, 255, 255, 0.05); }
+.app-shell .contact-avatar { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+.app-shell .row-card-icon { background: rgba(94, 234, 212, 0.12); border-color: rgba(94, 234, 212, 0.3); }
+.app-shell .avatar-edit-btn { background: var(--navy-2); }
+.app-shell .receipt { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.2); }
+.app-shell .modal { background: var(--surface); border-color: var(--border-soft); }
+.app-shell .empty-icon { background: rgba(255, 255, 255, 0.06); }
+.app-shell .skeleton {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.05) 75%);
+  background-size: 800px 100%;
+}
+/* Redeclarar el color base ACA: si no, .page-title y otros textos sin
+   color propio heredan el valor ya calculado en <body> (con el --text
+   original), en vez de recalcularlo con el --text nuevo de este scope */
+.app-shell { color: var(--text); }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -174,7 +228,7 @@ input, select, textarea { font-family: inherit; }
   gap: 12px;
   padding: 12px 14px;
   border-radius: 13px;
-  color: #9db4c8;
+  color: var(--green-bright);
   font-size: 14px;
   font-weight: 500;
   border: 1px solid transparent;
@@ -188,7 +242,7 @@ input, select, textarea { font-family: inherit; }
 }
 .nav-item:hover svg { transform: scale(1.08); }
 .nav-item.active {
-  color: #6ee7b7;
+  color: var(--mint);
   background: linear-gradient(110deg, rgba(16, 185, 129, 0.22), rgba(16, 185, 129, 0.06));
   border-color: rgba(52, 211, 153, 0.28);
   font-weight: 600;
@@ -243,9 +297,8 @@ input, select, textarea { font-family: inherit; }
 .main-content {
   flex: 1;
   margin-left: var(--sidebar-w);
-  padding: 36px clamp(20px, 5vw, 56px) 60px;
-  max-width: calc(860px + var(--sidebar-w));
-  width: 100%;
+  padding: 36px clamp(24px, 4vw, 64px) 60px;
+  width: calc(100% - var(--sidebar-w));
 }
 
 .page-title {
@@ -342,18 +395,29 @@ input, select, textarea { font-family: inherit; }
   text-shadow: 0 2px 18px rgba(4, 70, 50, 0.35);
 }
 .balance-amount .cents { font-size: 0.55em; font-weight: 700; opacity: 0.9; }
+.balance-card { text-align: center; }
+.balance-meta-value { justify-content: center; }
+.balance-eye {
+  position: absolute;
+  top: 30px;
+  right: 30px;
+  z-index: 2;
+}
 .balance-meta-row {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 10px 28px;
   margin-top: 22px;
   padding-top: 18px;
   border-top: 1px solid rgba(255, 255, 255, 0.28);
+  text-align: left;
 }
 .balance-meta-label {
   font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
   text-transform: uppercase; color: rgba(255, 255, 255, 0.72);
   margin-bottom: 3px;
+  text-align: center;
 }
 .balance-meta-value {
   font-size: 13px; font-weight: 600; color: #fff;
@@ -380,6 +444,225 @@ input, select, textarea { font-family: inherit; }
   transition: color 0.15s;
 }
 .btn-copy:hover { color: #fff; }
+
+/* ── Panel fusionado: cuenta(s) + accesos rápidos en un solo degradé
+   continuo, sin cortar en una tarjeta separada ── */
+.hero-panel {
+  position: relative;
+  border-radius: 26px;
+  overflow: hidden;
+  background:
+    radial-gradient(130% 90% at 0% 0%, rgba(110, 231, 183, 0.16), transparent 55%),
+    linear-gradient(160deg, var(--navy) 0%, var(--navy-2) 45%, #0d7a5f 100%);
+  box-shadow:
+    0 20px 48px -16px rgba(5, 26, 16, 0.55),
+    0 18px 44px -20px rgba(5, 150, 105, 0.4);
+}
+/* Las cuentas dejan de pintar su propio degradé: comparten el del panel,
+   asi dos cajas (ARS y USD) se ven como una sola superficie continua */
+.hero-panel .balance-card {
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+.hero-panel .balance-card:hover { transform: none; box-shadow: none; }
+
+.quick-panel {
+  position: relative;
+  background: linear-gradient(180deg, #0d7a5f 0%, var(--navy) 100%);
+  padding: 26px 24px 30px;
+}
+.quick-panel-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 18px;
+  text-align: center;
+}
+.quick-panel .quick-action-icon {
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(6px);
+}
+.quick-panel .quick-action:hover .quick-action-icon {
+  background: rgba(255, 255, 255, 0.24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 10px 20px -10px rgba(0, 0, 0, 0.35);
+}
+.quick-panel .quick-action-label { color: rgba(255, 255, 255, 0.92); }
+
+/* ── Panel oscuro compartido para las secciones del Dashboard: todo el
+   mismo verde, los botones son los que se diferencian ── */
+.dash-panel {
+  border-radius: 20px;
+  padding: 22px 24px;
+  background: linear-gradient(160deg, var(--navy) 0%, var(--navy-2) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #eafbf1;
+}
+.dash-panel .dash-panel-sub { color: rgba(234, 251, 241, 0.68); }
+
+/* ── Vista previa de tarjetas (estilo "Cards" de una app de fintech) ── */
+.cards-preview { margin-top: 18px; padding: 20px 22px; }
+.cards-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0 0 14px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #eafbf1;
+  cursor: pointer;
+}
+.cards-preview-head:hover { color: var(--mint); }
+.cards-preview-row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.card-swatch {
+  flex: 0 0 auto;
+  width: 140px;
+  height: 92px;
+  border-radius: 16px;
+  border: none;
+  cursor: pointer;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: left;
+  font-family: inherit;
+  color: #ffffff;
+  background: var(--grad-brand);
+  box-shadow: 0 12px 24px -12px rgba(5, 150, 105, 0.45);
+  transition: transform 0.2s var(--ease-spring), box-shadow 0.2s var(--ease-out);
+}
+.card-swatch:hover { transform: translateY(-3px); box-shadow: 0 16px 30px -12px rgba(5, 150, 105, 0.5); }
+.card-swatch-mc { background: linear-gradient(135deg, var(--navy-2), var(--navy)); }
+.card-swatch-brand { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; opacity: 0.9; }
+.card-swatch-num { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.card-swatch-add {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1.5px dashed rgba(255, 255, 255, 0.25);
+  color: rgba(234, 251, 241, 0.75);
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: none;
+}
+.card-swatch-add:hover { border-color: var(--mint); color: var(--mint); transform: translateY(-3px); }
+.card-swatch-plus {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 18px; font-weight: 700; line-height: 1;
+  color: var(--mint);
+}
+.card-swatch-add span:last-child { font-size: 12px; font-weight: 600; }
+
+/* ── Tarjeta física — mockup realista (estilo "personalizar tarjeta") ── */
+.credit-card {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  aspect-ratio: 1.586;
+  border-radius: 18px;
+  padding: 22px 24px;
+  margin: 0 auto 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #ffffff;
+  overflow: hidden;
+  background: var(--grad-brand);
+  box-shadow:
+    0 24px 48px -18px rgba(5, 26, 16, 0.5),
+    0 16px 32px -16px rgba(5, 150, 105, 0.4);
+}
+.credit-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg,
+    rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 30%,
+    rgba(255, 255, 255, 0) 68%, rgba(255, 255, 255, 0.1) 100%);
+  pointer-events: none;
+}
+.credit-card-mc { background: linear-gradient(135deg, var(--navy-2) 0%, var(--navy) 55%, var(--navy-deep) 100%); }
+.credit-card-inactive { filter: grayscale(0.5); }
+
+.credit-card-top {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  position: relative; z-index: 1;
+}
+.credit-card-brand {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 12.5px;
+  letter-spacing: 0.16em;
+  opacity: 0.9;
+}
+.credit-card-chip {
+  width: 40px; height: 30px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #f5e2a8, #cfa85e);
+  position: relative;
+}
+.credit-card-chip::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  border-radius: 3px;
+}
+.credit-card-number {
+  font-family: var(--font-display);
+  font-size: clamp(16px, 4vw, 19px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  position: relative; z-index: 1;
+}
+.credit-card-bottom {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  position: relative; z-index: 1;
+}
+.credit-card-label {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  opacity: 0.7; margin-bottom: 2px;
+}
+.credit-card-value { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; }
+.credit-card-mark { font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 20px; }
+.credit-card-mark-mc { display: flex; }
+.credit-card-mark-mc .c1, .credit-card-mark-mc .c2 { width: 24px; height: 24px; border-radius: 50%; opacity: 0.92; }
+.credit-card-mark-mc .c1 { background: #eb6134; }
+.credit-card-mark-mc .c2 { background: #f79e1b; margin-left: -9px; }
+.credit-card-overlay {
+  position: absolute; inset: 0;
+  background: rgba(4, 10, 7, 0.86);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fff;
+  z-index: 2;
+}
 
 /* Acciones rápidas */
 .quick-grid {
@@ -489,14 +772,14 @@ input, select, textarea { font-family: inherit; }
   padding: 8px 16px;
   border-radius: 10px;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--jade);
-  background: rgba(16, 185, 129, 0.08);
-  border: 1px solid rgba(5, 150, 105, 0.28);
+  font-weight: 700;
+  color: var(--mint);
+  background: rgba(45, 212, 191, 0.14);
+  border: 1.5px solid var(--mint);
   cursor: pointer;
   transition: all 0.18s;
 }
-.btn-outline-green:hover { background: rgba(16, 185, 129, 0.16); }
+.btn-outline-green:hover { background: rgba(45, 212, 191, 0.24); }
 
 /* Formularios */
 .field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
@@ -1000,7 +1283,7 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   .main-content {
     margin-left: 0;
     padding: 18px 16px 110px;
-    max-width: 100%;
+    width: 100%;
   }
 
   /* Topbar mobile */
