@@ -19,6 +19,11 @@ exports.emitirTarjeta = async (req, res) => {
     }
 
     try {
+        const yaTiene = await Tarjeta.tieneActivaDeMarca(req.usuario.id, marca);
+        if (yaTiene) {
+            return res.status(409).json({ error: `Ya tenes una tarjeta ${marca} activa. No podes tener mas de una del mismo tipo.` });
+        }
+
         const dni = req.usuario.dni;
 
         let situacion = 1;

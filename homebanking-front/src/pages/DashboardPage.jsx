@@ -119,7 +119,7 @@ export default function DashboardPage() {
               <Icon name="chevronRight" size={16} />
             </button>
             <div className="cards-preview-row">
-              {tarjetas.slice(0, 2).map((t) => (
+              {tarjetas.filter((t) => t.estado !== 'CERRADO').slice(0, 2).map((t) => (
                 <button
                   key={t.id_tarjeta}
                   className={`card-swatch ${t.marca === 'MASTERCARD' ? 'card-swatch-mc' : ''}`}
@@ -131,7 +131,7 @@ export default function DashboardPage() {
               ))}
               <button className="card-swatch card-swatch-add" onClick={() => navigate('/tarjetas')}>
                 <span className="card-swatch-plus">+</span>
-                <span>{tarjetas.length ? 'Nueva tarjeta' : 'Emitir tarjeta'}</span>
+                <span>{tarjetas.some((t) => t.estado !== 'CERRADO') ? 'Nueva tarjeta' : 'Emitir tarjeta'}</span>
               </button>
             </div>
           </div>

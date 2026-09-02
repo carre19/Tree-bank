@@ -26,6 +26,9 @@ const generarNumeroTarjeta = () => {
     return BIN + resto;
 };
 
+// Codigo de seguridad (CVV) de 3 digitos
+const generarCVV = () => String(crypto.randomInt(0, 1000)).padStart(3, '0');
+
 const Tarjeta = {
 
     MARCAS_VALIDAS,
@@ -50,9 +53,9 @@ const Tarjeta = {
                 const id_producto = resProducto.rows[0].id_producto;
 
                 const resTarjeta = await client.query(
-                    `INSERT INTO tarjetas_credito (id_producto, numero_tarjeta, marca, fecha_vencimiento, limite_compra, dia_cierre)
-                     VALUES ($1, $2, $3, CURRENT_DATE + INTERVAL '5 years', $4, $5) RETURNING *`,
-                    [id_producto, generarNumeroTarjeta(), marca, limite_compra, DIA_CIERRE_FIJO]
+                    `INSERT INTO tarjetas_credito (id_producto, numero_tarjeta, marca, fecha_vencimiento, limite_compra, dia_cierre, codigo_seguridad)
+                     VALUES ($1, $2, $3, CURRENT_DATE + INTERVAL '5 years', $4, $5, $6) RETURNING *`,
+                    [id_producto, generarNumeroTarjeta(), marca, limite_compra, DIA_CIERRE_FIJO, generarCVV()]
                 );
 
                 await client.query('COMMIT');
@@ -66,6 +69,20 @@ const Tarjeta = {
             }
         }
         throw new Error('No se pudo generar un numero de tarjeta unico, intenta de nuevo');
+    },
+
+    // Una persona no puede tener mas de una tarjeta ACTIVA de la misma marca
+    // (si cerro la anterior, puede pedir una nueva de esa marca sin problema)
+    tieneActivaDeMarca: async (id_persona, marca) => {
+        const { rows } = await db.query(
+            `SELECT 1 FROM tarjetas_credito t
+             JOIN productos p ON t.id_producto = p.id_producto
+             JOIN estados_producto ep ON p.id_estado_producto = ep.id_estado_producto
+             WHERE p.id_persona = $1 AND t.marca = $2 AND ep.nombre = 'ACTIVO'
+             LIMIT 1`,
+            [id_persona, marca]
+        );
+        return rows.length > 0;
     },
 
     getTarjetasByPersona: async (id_persona) => {

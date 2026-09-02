@@ -12,12 +12,20 @@ const ESTADO_LABEL = {
   BLOQUEADO: 'Bloqueada',
 };
 
-const enmascarar = (numero) => `•••• •••• •••• ${String(numero).slice(-4)}`;
+const agrupar = (numero) => String(numero).replace(/(.{4})/g, '$1 ').trim();
+
+const formatearVencimiento = (fecha) => {
+  const d = new Date(fecha);
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const anio = String(d.getFullYear()).slice(-2);
+  return `${mes}/${anio}`;
+};
 
 export default function TarjetasPage() {
   const { usuario } = useAuth();
   const usuarioNombre = `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim().toUpperCase() || 'TREE BANK';
   const [tarjetas, setTarjetas] = useState([]);
+  const tarjetasVisibles = tarjetas.filter((t) => t.estado !== 'CERRADO');
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
 
@@ -136,7 +144,7 @@ export default function TarjetasPage() {
             </div>
           )}
 
-          {!cargando && tarjetas.length === 0 && (
+          {!cargando && tarjetasVisibles.length === 0 && (
             <div className="empty anim-up-1">
               <div className="empty-icon"><Icon name="card" size={26} /></div>
               <p>Todavía no tenés ninguna tarjeta de crédito</p>
@@ -144,7 +152,7 @@ export default function TarjetasPage() {
           )}
 
           <div className="anim-up-1" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {tarjetas.map((t) => {
+            {tarjetasVisibles.map((t) => {
               const badge = t.estado === 'ACTIVO' ? 'in' : t.estado === 'BLOQUEADO' ? 'warn' : 'out';
               const disponible = Number(t.limite_compra) - Number(t.saldo_consumido);
               return (
@@ -154,7 +162,17 @@ export default function TarjetasPage() {
                       <span className="credit-card-brand">TREE BANK</span>
                       <div className="credit-card-chip" />
                     </div>
-                    <div className="credit-card-number">{enmascarar(t.numero_tarjeta)}</div>
+                    <div className="credit-card-number">{agrupar(t.numero_tarjeta)}</div>
+                    <div className="credit-card-mid">
+                      <div>
+                        <div className="credit-card-label">Vence</div>
+                        <div className="credit-card-value">{formatearVencimiento(t.fecha_vencimiento)}</div>
+                      </div>
+                      <div>
+                        <div className="credit-card-label">CVV</div>
+                        <div className="credit-card-value">{t.codigo_seguridad}</div>
+                      </div>
+                    </div>
                     <div className="credit-card-bottom">
                       <div>
                         <div className="credit-card-label">Titular</div>
