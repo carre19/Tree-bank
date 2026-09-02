@@ -36,6 +36,7 @@ const cambioRoutes   = require('./routes/cambioRoutes');   // /api/cambio (compr
 const tarjetaRoutes  = require('./routes/tarjetaRoutes');  // /api/tarjetas (tarjetas de credito)
 const seguroRoutes   = require('./routes/seguroRoutes');   // /api/seguros (polizas)
 const reservaRoutes  = require('./routes/reservaRoutes');  // /api/cuentas/:cbu/reservas, /api/reservas
+const servicioRoutes = require('./routes/servicioRoutes'); // /api/servicios (agua, luz, gas)
 
 // tablaController se usa directamente aquí (no tiene archivo de rutas propio)
 const tablaController = require('./controllers/tablaController');
@@ -74,6 +75,7 @@ app.use('/api', cambioRoutes);
 app.use('/api', tarjetaRoutes);
 app.use('/api', seguroRoutes);
 app.use('/api', reservaRoutes);
+app.use('/api', servicioRoutes);
 
 // Esta ruta especial permite leer el contenido de cualquier tabla de Supabase
 // Ejemplo: GET /api/tablas/personas → devuelve todas las personas

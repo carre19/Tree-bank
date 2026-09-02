@@ -14,6 +14,7 @@ import PrestamosPage from './pages/PrestamosPage';
 import CambioPage from './pages/CambioPage';
 import TarjetasPage from './pages/TarjetasPage';
 import SegurosPage from './pages/SegurosPage';
+import ServiciosPage from './pages/ServiciosPage';
 import ReservasPage from './pages/ReservasPage';
 import PerfilPage from './pages/PerfilPage';
 import AdminPage from './pages/AdminPage';
@@ -67,6 +68,7 @@ function AppRoutes() {
         <Route path="/cambio" element={<RutaPrivada><CambioPage /></RutaPrivada>} />
         <Route path="/tarjetas" element={<RutaPrivada><TarjetasPage /></RutaPrivada>} />
         <Route path="/seguros" element={<RutaPrivada><SegurosPage /></RutaPrivada>} />
+        <Route path="/servicios" element={<RutaPrivada><ServiciosPage /></RutaPrivada>} />
         <Route path="/reservas" element={<RutaPrivada><ReservasPage /></RutaPrivada>} />
         <Route path="/perfil" element={<RutaPrivada><PerfilPage /></RutaPrivada>} />
         <Route path="/admin" element={<RutaAdmin><AdminPage /></RutaAdmin>} />

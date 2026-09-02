@@ -36,6 +36,10 @@ const paths = {
   vault:     <><rect x="3" y="7" width="18" height="14" rx="2.5" /><path d="M8 7V5.5A4 4 0 0 1 12 1.5a4 4 0 0 1 4 4V7" /><circle cx="12" cy="14" r="2.3" /><path d="M12 16.3V18" /></>,
   sun:       <><circle cx="12" cy="12" r="4" /><path d="M12 2v2.5" /><path d="M12 19.5V22" /><path d="M4.2 4.2 6 6" /><path d="m18 18 1.8 1.8" /><path d="M2 12h2.5" /><path d="M19.5 12H22" /><path d="M4.2 19.8 6 18" /><path d="m18 6 1.8-1.8" /></>,
   moon:      <path d="M20.5 14.3A8.5 8.5 0 0 1 9.7 3.5a8.5 8.5 0 1 0 10.8 10.8z" />,
+  droplet:   <path d="M12 2.5s7 8 7 12.5a7 7 0 0 1-14 0c0-4.5 7-12.5 7-12.5z" />,
+  bolt:      <path d="M12.5 2 4 14h6l-1 8 8.5-12h-6l1-8z" />,
+  flame:     <path d="M12 2.5c1 3-3 4.5-3 8a3 3 0 0 0 6 0c0-1-.5-2-1-2.5.5 3 3 3.5 3 6.5a5 5 0 0 1-10 0c0-5 3.5-6.5 5-12z" />,
+  receipt:   <><path d="M6 2h12v20l-2.5-1.5L13 22l-2-1.5L9 22l-2.5-1.5L4 22V4a2 2 0 0 1 2-2z" /><path d="M8 7h8" /><path d="M8 11h8" /><path d="M8 15h5" /></>,
 };
 
 export default function Icon({ name, size = 20, strokeWidth = 2, className = '', style }) {

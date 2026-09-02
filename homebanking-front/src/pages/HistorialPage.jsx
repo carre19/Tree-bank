@@ -3,13 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import AppLayout from '../components/AppLayout';
 import Icon from '../components/Icon';
 import api from '../api/api';
-
-const FILTROS = [
-  { id: 'TODOS',                  label: 'Todos' },
-  { id: 'TRANSFERENCIA_INGRESO',  label: 'Recibidos' },
-  { id: 'TRANSFERENCIA_EGRESO',   label: 'Enviados' },
-  { id: 'DEPOSITO',               label: 'Depósitos' },
-];
+import { CATEGORIAS, infoMovimiento, categoriasPresentes } from '../data/categoriasMovimiento';
 
 export default function HistorialPage() {
   const { usuario } = useAuth();
@@ -49,28 +43,30 @@ export default function HistorialPage() {
       ' · ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
   };
 
-  const esPositivo = (tipo) => tipo === 'TRANSFERENCIA_INGRESO' || tipo === 'DEPOSITO';
   const fmt = (v) => Number(v).toLocaleString('es-AR', { minimumFractionDigits: 2 });
 
   const totalIngresos = movimientos
-    .filter(m => esPositivo(m.tipo_movimiento))
+    .filter(m => infoMovimiento(m.tipo_movimiento).signo === 'in')
     .reduce((sum, m) => sum + Number(m.monto), 0);
 
   const totalEgresos = movimientos
-    .filter(m => m.tipo_movimiento === 'TRANSFERENCIA_EGRESO')
+    .filter(m => infoMovimiento(m.tipo_movimiento).signo === 'out')
     .reduce((sum, m) => sum + Number(m.monto), 0);
 
+  // Chips de categoría: solo se muestran las que de verdad aparecen en el historial
+  const categoriasChip = categoriasPresentes(movimientos);
   const movFiltrados = filtro === 'TODOS'
     ? movimientos
-    : movimientos.filter(m => m.tipo_movimiento === filtro);
+    : movimientos.filter(m => infoMovimiento(m.tipo_movimiento).categoria === filtro);
 
   // ── Datos del gráfico: ingresos vs egresos agrupados por día (últimos 7 días con actividad)
   const porDia = {};
   movimientos.forEach(m => {
     const dia = new Date(m.fecha).toISOString().slice(0, 10);
     if (!porDia[dia]) porDia[dia] = { in: 0, out: 0 };
-    if (esPositivo(m.tipo_movimiento)) porDia[dia].in += Number(m.monto);
-    else porDia[dia].out += Number(m.monto);
+    const signo = infoMovimiento(m.tipo_movimiento).signo;
+    if (signo === 'in') porDia[dia].in += Number(m.monto);
+    else if (signo === 'out') porDia[dia].out += Number(m.monto);
   });
   const dias = Object.keys(porDia).sort().slice(-7);
   const maxValor = Math.max(1, ...dias.flatMap(d => [porDia[d].in, porDia[d].out]));
@@ -83,18 +79,18 @@ export default function HistorialPage() {
     <AppLayout>
       <div className="anim-up">
         <h1 className="page-title">Movimientos</h1>
-        <p className="page-sub">Todo lo que entró y salió de tu cuenta.</p>
+        <p className="page-sub">Todo lo que entró y salió de tu cuenta, catalogado por tipo de gasto.</p>
       </div>
 
       {/* Resumen */}
       <div className="stats-grid anim-up-1">
         <div className="stat-card">
-          <div className="stat-icon" style={{ background: 'rgba(52,211,153,0.13)', color: 'var(--green-bright)', border: '1px solid var(--ok-border)' }}>
+          <div className="stat-icon" style={{ background: 'var(--ok-bg)', color: 'var(--ok)', border: '1px solid var(--ok-border)' }}>
             <Icon name="arrowDown" size={19} />
           </div>
           <div>
             <p className="stat-label">Total recibido</p>
-            <p className="stat-value" style={{ color: 'var(--green-bright)' }}>+$ {fmt(totalIngresos)}</p>
+            <p className="stat-value" style={{ color: 'var(--ok)' }}>+$ {fmt(totalIngresos)}</p>
           </div>
         </div>
         <div className="stat-card">
@@ -102,12 +98,12 @@ export default function HistorialPage() {
             <Icon name="arrowUp" size={19} />
           </div>
           <div>
-            <p className="stat-label">Total enviado</p>
+            <p className="stat-label">Total gastado</p>
             <p className="stat-value" style={{ color: 'var(--red)' }}>-$ {fmt(totalEgresos)}</p>
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon" style={{ background: 'var(--surface-2)', color: 'var(--mint)', border: '1px solid var(--border)' }}>
+          <div className="stat-icon" style={{ background: 'var(--surface-2)', color: 'var(--accent)', border: '1px solid var(--border)' }}>
             <Icon name="history" size={19} />
           </div>
           <div>
@@ -152,21 +148,28 @@ export default function HistorialPage() {
             ))}
           </div>
           <div className="chart-legend">
-            <span><span className="dot" style={{ background: 'var(--green-bright)' }} />Ingresos</span>
+            <span><span className="dot" style={{ background: 'var(--ok)' }} />Ingresos</span>
             <span><span className="dot" style={{ background: 'var(--red)' }} />Egresos</span>
           </div>
         </div>
       )}
 
-      {/* Filtros */}
+      {/* Filtros por categoría (estilo Mercado Pago: todo, o un tipo de gasto puntual) */}
       <div className="chips anim-up-2">
-        {FILTROS.map(f => (
+        <button
+          className={`chip${filtro === 'TODOS' ? ' active' : ''}`}
+          onClick={() => setFiltro('TODOS')}
+        >
+          Todos
+        </button>
+        {categoriasChip.map((cat) => (
           <button
-            key={f.id}
-            className={`chip${filtro === f.id ? ' active' : ''}`}
-            onClick={() => setFiltro(f.id)}
+            key={cat}
+            className={`chip${filtro === cat ? ' active' : ''}`}
+            onClick={() => setFiltro(cat)}
           >
-            {f.label}
+            <Icon name={CATEGORIAS[cat].icon} size={13} style={{ marginRight: 5, verticalAlign: -2 }} />
+            {CATEGORIAS[cat].label}
           </button>
         ))}
       </div>
@@ -190,27 +193,23 @@ export default function HistorialPage() {
 
       <div className="anim-up-2" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {movFiltrados.map((mov) => {
-          const tipo = mov.tipo_movimiento;
-          const positivo = esPositivo(tipo);
-          const esDeposito = tipo === 'DEPOSITO';
-          const dir = positivo ? 'in' : 'out';
-          const labelBadge = esDeposito ? 'Depósito' : positivo ? 'Recibido' : 'Enviado';
-          const descDefault = esDeposito ? 'Depósito en efectivo' : positivo ? 'Transferencia recibida' : 'Transferencia enviada';
+          const info = infoMovimiento(mov.tipo_movimiento);
+          const dir = info.signo === 'in' ? 'in' : info.signo === 'out' ? 'out' : 'warn';
 
           return (
             <div key={mov.id_movimiento} className="tx-item">
-              <div className={`tx-icon ${dir}`}>
-                <Icon name={esDeposito ? 'deposit' : positivo ? 'arrowDown' : 'arrowUp'} size={19} />
+              <div className={`tx-icon ${dir === 'warn' ? '' : dir}`} style={dir === 'warn' ? { background: 'var(--warn-bg)', color: 'var(--warn)', border: '1px solid var(--warn-border)' } : undefined}>
+                <Icon name={info.icon} size={19} />
               </div>
               <div className="tx-info">
-                <p className="tx-desc">{mov.descripcion || descDefault}</p>
+                <p className="tx-desc">{mov.descripcion || info.label}</p>
                 <p className="tx-date">{formatFecha(mov.fecha)}</p>
               </div>
               <div className="tx-right">
-                <p className={`tx-amount ${dir}`}>
-                  {positivo ? '+' : '-'}$ {fmt(mov.monto)}
+                <p className={`tx-amount ${dir === 'warn' ? '' : dir}`} style={dir === 'warn' ? { color: 'var(--warn)' } : undefined}>
+                  {info.signo === 'in' ? '+' : info.signo === 'out' ? '-' : ''}$ {fmt(mov.monto)}
                 </p>
-                <span className={`tx-badge ${dir}`}>{labelBadge}</span>
+                <span className={`tx-badge ${dir}`}>{info.categoriaLabel}</span>
               </div>
             </div>
           );

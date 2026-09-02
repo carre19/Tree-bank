@@ -13,6 +13,7 @@ const ACCIONES = [
   { to: '/prestamos',      icon: 'loan',      label: 'Préstamos' },
   { to: '/tarjetas',       icon: 'card',      label: 'Tarjetas' },
   { to: '/seguros',        icon: 'insurance', label: 'Seguros' },
+  { to: '/servicios',      icon: 'receipt',   label: 'Servicios' },
   { to: '/reservas',       icon: 'vault',     label: 'Reservas' },
 ];
 
