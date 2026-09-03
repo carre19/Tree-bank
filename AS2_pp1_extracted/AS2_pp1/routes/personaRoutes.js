@@ -11,10 +11,12 @@ const router = express.Router();
 const personaController = require('../controllers/personaController');
 
 // Middleware de autenticación: las rutas con verificarToken requieren login
-const { verificarToken } = require('../middleware/authMiddleware');
+const { verificarToken, verificarAdmin } = require('../middleware/authMiddleware');
 
-// GET /api/personas - Lista todas las personas (publico, para admin)
-router.get('/personas', personaController.obtenerPersonas);
+// GET /api/personas - Lista todas las personas del banco (solo ADMIN).
+// Antes era publico: devolvia nombre, DNI, email, telefono y el saldo de
+// TODOS los clientes a cualquiera que supiera la URL.
+router.get('/personas', verificarToken, verificarAdmin, personaController.obtenerPersonas);
 
 // POST /api/personas - Registra una persona (llama al Banco Central)
 router.post('/personas', personaController.crearPersona);
@@ -29,8 +31,8 @@ router.get('/personas/:cbu/buscar', personaController.buscarPorCbu);
 // PUT /api/personas/:cbu/alias (requiere token - solo el dueno de la cuenta)
 router.put('/personas/:cbu/alias', verificarToken, personaController.asignarAlias);
 
-// GET /api/personas/:id/roles
-router.get('/personas/:id/roles', personaController.obtenerRoles);
+// GET /api/personas/:id/roles (requiere token - solo los propios, o ADMIN)
+router.get('/personas/:id/roles', verificarToken, personaController.obtenerRoles);
 
 // GET /api/personas/:id/productos (requiere token - solo el propio usuario)
 router.get('/personas/:id/productos', verificarToken, personaController.obtenerProductos);

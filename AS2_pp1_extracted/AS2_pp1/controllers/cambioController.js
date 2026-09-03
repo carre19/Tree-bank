@@ -7,6 +7,7 @@
 
 const Persona = require('../models/personaModel');
 const { obtenerCotizacionOficial } = require('../services/cotizacionService');
+const { validarMonto, aMonto } = require('../utils/validaciones');
 
 // GET /api/cambio/cotizacion — Cotizacion del dolar oficial vigente
 exports.obtenerCotizacion = async (req, res) => {
@@ -23,12 +24,12 @@ exports.obtenerCotizacion = async (req, res) => {
 // vende USD y recibe ARS). "monto" siempre se expresa en USD.
 exports.realizarCambio = async (req, res) => {
     const { operacion } = req.body;
-    const montoUsd = Number(req.body.monto);
+    const montoUsd = aMonto(req.body.monto);
 
     if (!['COMPRA', 'VENTA'].includes(operacion)) {
         return res.status(400).json({ error: 'La operacion debe ser COMPRA o VENTA' });
     }
-    if (!montoUsd || montoUsd <= 0) {
+    if (!validarMonto(req.body.monto)) {
         return res.status(400).json({ error: 'El monto en USD debe ser un numero mayor a 0' });
     }
 

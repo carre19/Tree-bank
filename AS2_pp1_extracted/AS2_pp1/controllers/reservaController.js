@@ -7,6 +7,7 @@
 // ============================================================
 
 const Persona = require('../models/personaModel');
+const { validarMonto, aMonto } = require('../utils/validaciones');
 
 // GET /api/cuentas/:cbu/reservas — Lista las reservas de una cuenta propia
 exports.listarReservas = async (req, res) => {
@@ -32,12 +33,12 @@ exports.listarReservas = async (req, res) => {
 exports.crearReserva = async (req, res) => {
     const { cbu } = req.params;
     const nombre = (req.body.nombre || '').trim();
-    const monto = Number(req.body.monto);
+    const monto = aMonto(req.body.monto);
 
     if (!nombre || nombre.length < 2) {
         return res.status(400).json({ error: 'El nombre de la reserva debe tener al menos 2 caracteres' });
     }
-    if (!monto || monto <= 0) {
+    if (!validarMonto(req.body.monto)) {
         return res.status(400).json({ error: 'El monto debe ser un numero mayor a 0' });
     }
 
@@ -65,8 +66,8 @@ exports.crearReserva = async (req, res) => {
 // POST /api/reservas/:id/agregar — Suma mas plata a una reserva existente
 exports.agregarMonto = async (req, res) => {
     const { id } = req.params;
-    const monto = Number(req.body.monto);
-    if (!monto || monto <= 0) {
+    const monto = aMonto(req.body.monto);
+    if (!validarMonto(req.body.monto)) {
         return res.status(400).json({ error: 'El monto debe ser un numero mayor a 0' });
     }
 
@@ -95,8 +96,8 @@ exports.agregarMonto = async (req, res) => {
 // POST /api/reservas/:id/liberar — Devuelve plata de la reserva al disponible (sin eliminarla)
 exports.liberarMonto = async (req, res) => {
     const { id } = req.params;
-    const monto = Number(req.body.monto);
-    if (!monto || monto <= 0) {
+    const monto = aMonto(req.body.monto);
+    if (!validarMonto(req.body.monto)) {
         return res.status(400).json({ error: 'El monto debe ser un numero mayor a 0' });
     }
 

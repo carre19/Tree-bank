@@ -8,6 +8,7 @@
 
 const Servicio = require('../models/servicioModel');
 const Persona = require('../models/personaModel');
+const { validarMonto, aMonto } = require('../utils/validaciones');
 
 // POST /api/servicios/consultar-factura — Simula la factura de un servicio
 exports.consultarFactura = async (req, res) => {
@@ -33,7 +34,7 @@ exports.consultarFactura = async (req, res) => {
 exports.pagarServicio = async (req, res) => {
     const tipo_servicio = (req.body.tipo_servicio || '').toUpperCase();
     const numero_cliente = (req.body.numero_cliente || '').trim();
-    const monto = Number(req.body.monto);
+    const monto = aMonto(req.body.monto);
 
     if (!Servicio.TIPOS_SERVICIO[tipo_servicio]) {
         return res.status(400).json({ error: `El servicio debe ser uno de: ${Object.keys(Servicio.TIPOS_SERVICIO).join(', ')}` });
@@ -41,7 +42,7 @@ exports.pagarServicio = async (req, res) => {
     if (numero_cliente.length < 3) {
         return res.status(400).json({ error: 'Falta el número de cliente' });
     }
-    if (!monto || monto <= 0 || !Servicio.montoEnRango(tipo_servicio, monto)) {
+    if (!validarMonto(req.body.monto) || !Servicio.montoEnRango(tipo_servicio, monto)) {
         return res.status(400).json({ error: 'El monto de la factura no es válido. Volvé a consultarla e intentá de nuevo.' });
     }
 

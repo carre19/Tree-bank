@@ -62,15 +62,12 @@ export default function TransferenciasPage() {
         // Las transferencias salen siempre de la caja en ARS (si la persona tambien
         // tiene caja en USD, esta busqueda la ignora a proposito: no alcanza con
         // "el primer producto", hay que pedir puntualmente el que es CAJA_AHORRO + ARS)
+        // /productos ya viene con cbu, saldo y moneda de cada cuenta propia
         const productos = await api.get(`/personas/${usuario.id}/productos`);
-        const cajasAhorro = productos.data.filter(p => p.tipo === 'CAJA_AHORRO');
-        if (cajasAhorro.length > 0) {
-          const cuentasRes = await api.get('/tablas/cuentas_bancarias');
-          const miCuenta = cuentasRes.data.find(c =>
-            cajasAhorro.some(p => p.id_producto === c.id_producto) && c.moneda === 'ARS'
-          );
-          if (miCuenta) { setCbuOrigen(miCuenta.cbu); setSaldoActual(miCuenta.saldo); }
-        }
+        const miCuenta = productos.data.find(
+          p => p.tipo === 'CAJA_AHORRO' && p.moneda === 'ARS' && p.cbu
+        );
+        if (miCuenta) { setCbuOrigen(miCuenta.cbu); setSaldoActual(miCuenta.saldo); }
 
         const contactosRes = await api.get(`/personas/${usuario.id}/contactos`);
         setContactos(contactosRes.data.map(c => ({ nombre: c.nombre || c.cbu, cbu: c.cbu, alias: null })));

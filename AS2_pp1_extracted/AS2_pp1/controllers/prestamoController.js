@@ -8,16 +8,17 @@
 const centralBank = require('../services/centralBankClient');
 const Prestamo = require('../models/prestamoModel');
 const Persona = require('../models/personaModel');
+const { validarMonto, aMonto } = require('../utils/validaciones');
 
 const CUOTAS_VALIDAS = Object.keys(Prestamo.TASAS_POR_CUOTAS).map(Number); // [3, 6, 12, 24]
 const SITUACION_LIMITE = 4; // 4 (riesgo alto) o 5 (irrecuperable) -> se rechaza
 
 // POST /api/prestamos — Solicita un prestamo (requiere estar logueado)
 exports.solicitarPrestamo = async (req, res) => {
-    const monto = Number(req.body.monto);
+    const monto = aMonto(req.body.monto);
     const cuotas = Number(req.body.cuotas);
 
-    if (!monto || monto <= 0) {
+    if (!validarMonto(req.body.monto)) {
         return res.status(400).json({ error: 'El monto debe ser un numero mayor a 0' });
     }
     if (!CUOTAS_VALIDAS.includes(cuotas)) {

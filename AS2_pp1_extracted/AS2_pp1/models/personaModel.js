@@ -289,9 +289,21 @@ const Persona = {
   },
 
   // Devuelve los productos (cuentas) de una persona
+  // Devuelve los productos de una persona YA JOINEADOS con su cuenta bancaria.
+  // Trae cbu/saldo/moneda aca a proposito: antes el frontend tenia que pedir
+  // /api/tablas/cuentas_bancarias (toda la tabla, de todos los clientes) y cruzarla
+  // a mano para encontrar la propia. Con estos campos alcanza este endpoint, que
+  // ya esta filtrado por el id del token.
   getProductos: async (id) => {
     const { rows } = await db.query(
-      'SELECT p.id_producto, tp.nombre as tipo FROM productos p JOIN tipos_producto tp ON p.id_tipo_producto = tp.id_tipo_producto WHERE p.id_persona = $1',
+      `SELECT p.id_producto, tp.nombre AS tipo, ep.nombre AS estado,
+              cb.id_cuenta, cb.cbu, cb.alias, cb.saldo, cb.moneda,
+              COALESCE((SELECT SUM(r.monto) FROM reservas r WHERE r.id_cuenta = cb.id_cuenta), 0) AS reservado
+       FROM productos p
+       JOIN tipos_producto tp ON p.id_tipo_producto = tp.id_tipo_producto
+       JOIN estados_producto ep ON p.id_estado_producto = ep.id_estado_producto
+       LEFT JOIN cuentas_bancarias cb ON cb.id_producto = p.id_producto
+       WHERE p.id_persona = $1`,
       [id]
     );
     return rows;

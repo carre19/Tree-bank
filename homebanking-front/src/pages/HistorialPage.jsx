@@ -113,13 +113,10 @@ export default function HistorialPage() {
       try {
         // El historial es siempre el de la caja en ARS (si tambien hay una en USD,
         // hace falta filtrar por moneda y no solo tomar "el primer producto")
+        // /productos ya viene con cbu, saldo y moneda de cada cuenta propia
         const productos = await api.get(`/personas/${usuario.id}/productos`);
-        const cajasAhorro = productos.data.filter(p => p.tipo === 'CAJA_AHORRO');
-        if (cajasAhorro.length === 0) return;
-
-        const cuentasRes = await api.get('/tablas/cuentas_bancarias');
-        const miCuenta = cuentasRes.data.find(c =>
-          cajasAhorro.some(p => p.id_producto === c.id_producto) && c.moneda === 'ARS'
+        const miCuenta = productos.data.find(
+          p => p.tipo === 'CAJA_AHORRO' && p.moneda === 'ARS' && p.cbu
         );
         if (!miCuenta) return;
 

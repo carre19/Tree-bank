@@ -101,8 +101,13 @@ const handlerSync = async (req, res) => {
     res.json(resultado);
 };
 
-router.post('/sync', handlerSync);
-router.get('/sync', handlerSync);
+// El sync tambien corre solo por cron cada 15 minutos. Disparalo a mano requiere
+// ser ADMIN: abierto al publico se podia usar para martillar la API del Banco
+// Central desde afuera.
+const { verificarToken, verificarAdmin } = require('../middleware/authMiddleware');
+
+router.post('/sync', verificarToken, verificarAdmin, handlerSync);
+router.get('/sync', verificarToken, verificarAdmin, handlerSync);
 
 module.exports = router;
 module.exports.ejecutarSync = ejecutarSync;

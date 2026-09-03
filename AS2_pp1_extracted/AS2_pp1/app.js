@@ -41,6 +41,11 @@ const servicioRoutes = require('./routes/servicioRoutes'); // /api/servicios (ag
 // tablaController se usa directamente aquí (no tiene archivo de rutas propio)
 const tablaController = require('./controllers/tablaController');
 
+// Middlewares de seguridad: el guardián de rutas y el limitador de intentos de login
+const { verificarToken, verificarAdmin } = require('./middleware/authMiddleware');
+const { limitarIntentos } = require('./middleware/rateLimit');
+const { ocultarDetalles } = require('./middleware/ocultarDetalles');
+
 // También importamos la función de sync para usarla en el cron job
 const { ejecutarSync } = require('./routes/sync');
 
@@ -54,15 +59,40 @@ const { ejecutarVerificacionPolizasVencidas } = require('./services/polizaServic
 // Un middleware es código que se ejecuta ANTES de llegar a las rutas.
 // Estos dos son obligatorios en todo backend Express:
 
-// Habilita CORS: sin esto el navegador bloquea los pedidos del frontend
-app.use(cors());
+// Habilita CORS solo para los origenes del frontend.
+// CORS_ORIGINS en el .env acepta varios separados por coma; si no esta definido,
+// se permiten los puertos locales de Vite para no romper el desarrollo.
+const origenesPermitidos = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
 
-// Permite leer JSON en el body de los pedidos (req.body)
-app.use(express.json());
+app.use(cors({
+    origin: (origin, callback) => {
+        // Sin header Origin (curl, Postman, healthchecks) se deja pasar:
+        // el navegador es el unico que manda Origin y el unico al que hay que proteger
+        if (!origin || origenesPermitidos.includes(origin)) return callback(null, true);
+        return callback(new Error('Origen no permitido por CORS'));
+    }
+}));
+
+// Permite leer JSON en el body de los pedidos (req.body).
+// El limite de tamano evita que alguien mande un body gigante y tumbe el proceso.
+app.use(express.json({ limit: '100kb' }));
+
+// En produccion, evita que los errores internos (mensajes de Postgres, del
+// Banco Central, rutas de archivos) salgan en las respuestas 5xx.
+app.use(ocultarDetalles);
 
 // ---- RUTAS ----
 // Acá conectamos todos los archivos de rutas bajo el prefijo /api
 // Ejemplo: personaRoutes tiene POST /personas → queda disponible como POST /api/personas
+// Los endpoints de credenciales van detras de un limitador de intentos:
+// sin esto se puede probar contrasenas por fuerza bruta a full velocidad.
+app.use('/api/auth/login', limitarIntentos);
+app.use('/api/auth/register', limitarIntentos);
+app.use('/api/auth/olvide-password', limitarIntentos);
+
 app.use('/api', authRoutes);
 app.use('/api', personaRoutes);
 app.use('/api', bancoRoutes);
@@ -77,9 +107,11 @@ app.use('/api', seguroRoutes);
 app.use('/api', reservaRoutes);
 app.use('/api', servicioRoutes);
 
-// Esta ruta especial permite leer el contenido de cualquier tabla de Supabase
-// Ejemplo: GET /api/tablas/personas → devuelve todas las personas
-app.get('/api/tablas/:tabla', tablaController.obtenerTabla);
+// Esta ruta vuelca una tabla entera de la base: es una herramienta de back-office,
+// solo para ADMIN. Estando abierta, GET /api/tablas/personas devolvia el DNI, el
+// email y el hash de contrasena de todos los clientes, y /api/tablas/cuentas_bancarias
+// el CBU y el saldo de cada cuenta del banco, a cualquiera sin login.
+app.get('/api/tablas/:tabla', verificarToken, verificarAdmin, tablaController.obtenerTabla);
 
 // ---- MANEJO DE RUTAS INEXISTENTES (404) ----
 // Si alguien llama a una URL que no existe, respondemos con error 404
@@ -87,7 +119,32 @@ app.use((req, res) => {
     res.status(404).json({ error: "La ruta solicitada no existe." });
 });
 
+// ---- MANEJO DE ERRORES ----
+// Ultimo middleware de la cadena: atrapa lo que haya explotado antes
+// (body JSON invalido, body demasiado grande, origen bloqueado por CORS).
+// Responde en JSON y sin stack trace, para no filtrar detalles internos.
+app.use((err, req, res, next) => {
+    if (err.message === 'Origen no permitido por CORS') {
+        return res.status(403).json({ error: 'Origen no permitido' });
+    }
+    if (err.type === 'entity.too.large') {
+        return res.status(413).json({ error: 'El cuerpo del pedido es demasiado grande' });
+    }
+    if (err.type === 'entity.parse.failed') {
+        return res.status(400).json({ error: 'El cuerpo del pedido no es JSON valido' });
+    }
+    console.error('Error no controlado:', err.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+});
+
 // ---- ARRANCAR EL SERVIDOR ----
+// Sin JWT_SECRET no se pueden firmar ni verificar tokens: cortamos el arranque
+// aca en vez de dejar que cada login falle con un 500 confuso en produccion.
+if (!process.env.JWT_SECRET) {
+    console.error('\x1b[31m%s\x1b[0m', '✖ Falta JWT_SECRET en el .env. El servidor no puede arrancar sin esa clave.');
+    process.exit(1);
+}
+
 // Leemos el puerto del .env (3001 por defecto)
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

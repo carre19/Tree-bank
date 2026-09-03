@@ -33,12 +33,10 @@ export default function DashboardPage() {
 
   const cargarCuentas = async () => {
     try {
+      // /productos ya viene con cbu, saldo y moneda de cada cuenta propia
       const productos = await api.get(`/personas/${usuario.id}/productos`);
-      const cuentasRes = await api.get('/tablas/cuentas_bancarias');
       const misCuentas = productos.data
-        .filter((p) => p.tipo === 'CAJA_AHORRO')
-        .map((p) => cuentasRes.data.find((c) => c.id_producto === p.id_producto))
-        .filter(Boolean)
+        .filter((p) => p.tipo === 'CAJA_AHORRO' && p.cbu)
         // ARS primero, siempre: es la cuenta principal
         .sort((a, b) => (a.moneda === 'ARS' ? -1 : b.moneda === 'ARS' ? 1 : 0));
       setCuentas(misCuentas);

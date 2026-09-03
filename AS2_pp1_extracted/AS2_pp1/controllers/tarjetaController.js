@@ -8,6 +8,7 @@
 const centralBank = require('../services/centralBankClient');
 const Tarjeta = require('../models/tarjetaModel');
 const Persona = require('../models/personaModel');
+const { validarMonto, aMonto } = require('../utils/validaciones');
 
 const SITUACION_LIMITE = 4; // 4 (riesgo alto) o 5 (irrecuperable) -> se rechaza
 
@@ -70,10 +71,10 @@ exports.listarMisTarjetas = async (req, res) => {
 // No mueve saldo de ninguna cuenta: se acumula en saldo_consumido hasta que se pague el resumen.
 exports.realizarCompra = async (req, res) => {
     const { id } = req.params;
-    const monto = Number(req.body.monto);
+    const monto = aMonto(req.body.monto);
     const descripcion = req.body.descripcion || 'Compra con tarjeta';
 
-    if (!monto || monto <= 0) {
+    if (!validarMonto(req.body.monto)) {
         return res.status(400).json({ error: 'El monto debe ser un numero mayor a 0' });
     }
 
@@ -112,9 +113,9 @@ exports.realizarCompra = async (req, res) => {
 // debitando de la caja de ahorro en ARS del titular.
 exports.pagarResumen = async (req, res) => {
     const { id } = req.params;
-    const monto = Number(req.body.monto);
+    const monto = aMonto(req.body.monto);
 
-    if (!monto || monto <= 0) {
+    if (!validarMonto(req.body.monto)) {
         return res.status(400).json({ error: 'El monto debe ser un numero mayor a 0' });
     }
 

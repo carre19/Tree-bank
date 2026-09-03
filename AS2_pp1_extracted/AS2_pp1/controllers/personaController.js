@@ -16,19 +16,10 @@ const Persona = require('../models/personaModel');
 const db = require('../config/db');
 
 // ---- Funciones de validación ----
-// Son mini-funciones que devuelven true/false y se usan antes de procesar cualquier dato
-
-// Verifica formato de email: texto@texto.texto
-const validarEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-// Verifica que el DNI tenga entre 7 y 8 dígitos numéricos
-const validarDni = (dni) => /^\d{7,8}$/.test(String(dni));
-
-// Verifica que el monto sea un número positivo mayor a 0
-const validarMonto = (monto) => {
-    const n = parseFloat(monto);
-    return !isNaN(n) && n > 0;
-};
+// Viven en utils/validaciones.js para que todos los controllers apliquen
+// exactamente el mismo criterio. La version anterior de validarMonto usaba
+// parseFloat y dejaba pasar Infinity, 1e400 y "100abc".
+const { validarDni, validarMonto, aMonto, validarTexto } = require('../utils/validaciones');
 
 // POST /api/personas — Registra una persona en el Banco Central y en Supabase
 // Este es el primer paso para crear un cliente nuevo en Tree Bank.
@@ -158,11 +149,18 @@ exports.realizarTransferencia = async (req, res) => {
         return res.status(400).json({ error: 'Los campos cbu_origen, cbu_destino y monto son requeridos' });
     }
     if (!validarMonto(monto)) {
-        return res.status(400).json({ error: 'El monto debe ser un numero positivo mayor a 0' });
+        return res.status(400).json({ error: 'El monto debe ser un numero positivo, con hasta 2 decimales y dentro del limite permitido' });
     }
     if (cbu_origen === cbu_destino) {
         return res.status(400).json({ error: 'El CBU de origen y destino no pueden ser iguales' });
     }
+    if (descripcion !== undefined && !validarTexto(descripcion, { max: 255 })) {
+        return res.status(400).json({ error: 'La descripcion debe ser un texto de hasta 255 caracteres' });
+    }
+
+    // A partir de aca se trabaja siempre con el numero ya normalizado,
+    // nunca con el string crudo del body
+    const importe = aMonto(monto);
 
     try {
         // Buscamos la cuenta origen en nuestra base de datos
@@ -186,7 +184,7 @@ exports.realizarTransferencia = async (req, res) => {
         // Verificación de saldo disponible (saldo - reservas) antes de llamar al Banco Central:
         // la plata que el usuario aparto en una reserva no se puede transferir sin liberarla antes
         const disponibleOrigen = parseFloat(cuentaOrigen.saldo) - parseFloat(cuentaOrigen.reservado || 0);
-        if (disponibleOrigen < parseFloat(monto)) {
+        if (disponibleOrigen < importe) {
             return res.status(400).json({ error: `Saldo disponible insuficiente para realizar la transferencia (disponible: $ ${disponibleOrigen.toFixed(2)})` });
         }
 
@@ -195,7 +193,7 @@ exports.realizarTransferencia = async (req, res) => {
         const respuestaCentral = await centralBank.post('/transactions', {
             cbuOrigen: cbu_origen,
             cbuDestino: cbu_destino,
-            importe: monto,
+            importe,
             saldoOrigen: cuentaOrigen.saldo
         });
 
@@ -205,11 +203,11 @@ exports.realizarTransferencia = async (req, res) => {
             const { nombreOrigen, nombreDestino } = respuestaCentral.data || {};
 
             // Transferencia APROBADA: descontar saldo y registrar movimientos
-            await Persona.descontarSaldo(cbu_origen, monto);
+            await Persona.descontarSaldo(cbu_origen, importe);
             await Persona.registrarMovimiento({
                 id_cuenta: cuentaOrigen.id_cuenta,
                 tipo_movimiento: 'TRANSFERENCIA_EGRESO',
-                monto,
+                monto: importe,
                 descripcion: descripcion || 'Transferencia enviada',
                 cbu_contraparte: cbu_destino,
                 nombre_contraparte: nombreDestino || null
@@ -218,11 +216,11 @@ exports.realizarTransferencia = async (req, res) => {
             // Si el destino tambien es de este banco, acreditar localmente
             const cuentaDestino = await Persona.getByCbu(cbu_destino);
             if (cuentaDestino) {
-                await Persona.acreditarSaldo(cbu_destino, monto);
+                await Persona.acreditarSaldo(cbu_destino, importe);
                 await Persona.registrarMovimiento({
                     id_cuenta: cuentaDestino.id_cuenta,
                     tipo_movimiento: 'TRANSFERENCIA_INGRESO',
-                    monto,
+                    monto: importe,
                     descripcion: descripcion || 'Transferencia recibida',
                     cbu_contraparte: cbu_origen,
                     nombre_contraparte: nombreOrigen || null
@@ -241,7 +239,7 @@ exports.realizarTransferencia = async (req, res) => {
                 await Persona.registrarMovimiento({
                     id_cuenta: (await Persona.getByCbu(cbu_origen))?.id_cuenta,
                     tipo_movimiento: 'TRANSFERENCIA_RECHAZADA',
-                    monto,
+                    monto: importe,
                     descripcion: `Rechazada: saldo insuficiente (destino: ${cbu_destino})`
                 });
             } catch (_) { /* si falla el registro no interrumpimos la respuesta */ }
@@ -266,7 +264,10 @@ exports.realizarDeposito = async (req, res) => {
         return res.status(400).json({ error: 'Los campos cbu y monto son requeridos' });
     }
     if (!validarMonto(monto)) {
-        return res.status(400).json({ error: 'El monto debe ser un numero positivo mayor a 0' });
+        return res.status(400).json({ error: 'El monto debe ser un numero positivo, con hasta 2 decimales y dentro del limite permitido' });
+    }
+    if (descripcion !== undefined && !validarTexto(descripcion, { max: 255 })) {
+        return res.status(400).json({ error: 'La descripcion debe ser un texto de hasta 255 caracteres' });
     }
 
     try {
@@ -285,7 +286,7 @@ exports.realizarDeposito = async (req, res) => {
             return res.status(403).json({ error: `La cuenta esta ${cuenta.estado.toLowerCase()} y no puede operar. Contacta al banco.` });
         }
 
-        const montoNum = parseFloat(monto);
+        const montoNum = aMonto(monto);
         await Persona.acreditarSaldo(cbu, montoNum);
         await Persona.registrarMovimiento({
             id_cuenta: cuenta.id_cuenta,
@@ -340,10 +341,15 @@ exports.obtenerPersonas = async (req, res) => {
     }
 };
 
-// GET /api/personas/:id/roles
+// GET /api/personas/:id/roles (solo los propios roles, salvo que seas ADMIN)
 exports.obtenerRoles = async (req, res) => {
     try {
-        const roles = await Persona.getRoles(req.params.id);
+        const idSolicitado = parseInt(req.params.id);
+        const esAdmin = (req.usuario.roles || []).includes('ADMIN');
+        if (idSolicitado !== req.usuario.id && !esAdmin) {
+            return res.status(403).json({ error: 'No tenes permiso para ver los roles de otro usuario' });
+        }
+        const roles = await Persona.getRoles(idSolicitado);
         res.json(roles);
     } catch (error) {
         res.status(500).json({ error: error.message });
