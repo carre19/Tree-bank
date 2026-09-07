@@ -152,11 +152,19 @@ fija por plazo, del orden de las tasas reales en pesos — el mismo enfoque que 
 `TASAS_POR_CUOTAS` en `prestamoModel.js` para los préstamos —, y el interés se calcula con la
 fórmula de interés simple estándar (`monto × tasa_anual/100 × plazo_dias/365`).
 
+**Precio histórico**: al hacer clic en cualquier símbolo (del panel de cotizaciones o de la propia
+cartera) se abre un gráfico de precio de cierre, con selector de período (1M/3M/6M/1A/MAX). Para
+acciones argentinas, data912.com tiene un endpoint de histórico propio con serie diaria completa
+desde 2002; para extranjeras no lo tiene, así que se usa el chart API público de Yahoo Finance
+(`query1.finance.yahoo.com/v8/finance/chart`), sin API key. Cada símbolo+período se cachea 10
+minutos del lado del servidor.
+
 Endpoints (todos requieren token, se opera siempre contra la cuenta propia):
 
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET | `/api/inversiones/cotizaciones/:mercado` | Panel completo en vivo (`ACCION_AR` o `ACCION_EX`) |
+| GET | `/api/inversiones/historico/:mercado/:simbolo?rango=` | Serie de cierres (`1M`\|`3M`\|`6M`\|`1A`\|`MAX`) |
 | GET | `/api/inversiones/tenencias` | Cartera del usuario, con la cotización actual de cada símbolo |
 | POST | `/api/inversiones/comprar` | `{ mercado, simbolo, cantidad }` |
 | POST | `/api/inversiones/vender` | `{ mercado, simbolo, cantidad }` |

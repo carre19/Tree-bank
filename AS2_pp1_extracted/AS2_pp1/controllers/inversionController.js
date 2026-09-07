@@ -9,7 +9,7 @@
 
 const Persona = require('../models/personaModel');
 const Inversion = require('../models/inversionModel');
-const { obtenerCotizaciones, buscarSimbolo } = require('../services/mercadoService');
+const { obtenerCotizaciones, buscarSimbolo, obtenerHistorico } = require('../services/mercadoService');
 const { validarEntero } = require('../utils/validaciones');
 
 const MERCADOS_VALIDOS = ['ACCION_AR', 'ACCION_EX'];
@@ -26,6 +26,30 @@ exports.obtenerCotizacionesPanel = async (req, res) => {
         res.json(resultado);
     } catch (error) {
         res.status(500).json({ error: 'No se pudieron obtener las cotizaciones', detalle: error.message });
+    }
+};
+
+// GET /api/inversiones/historico/:mercado/:simbolo?rango=1M|3M|6M|1A|MAX
+// Serie de precios de cierre para graficar. Argentinas: data912.com tiene
+// historico propio. Extranjeras: data912 no lo tiene, se usa el chart API
+// publico de Yahoo Finance (ver mercadoService.js).
+exports.obtenerHistoricoSimbolo = async (req, res) => {
+    const mercado = String(req.params.mercado || '').toUpperCase();
+    const simbolo = String(req.params.simbolo || '').trim().toUpperCase();
+    const rango = String(req.query.rango || '1A').toUpperCase();
+
+    if (!MERCADOS_VALIDOS.includes(mercado)) {
+        return res.status(400).json({ error: `El mercado debe ser uno de: ${MERCADOS_VALIDOS.join(', ')}` });
+    }
+    if (!simbolo) {
+        return res.status(400).json({ error: 'Falta el simbolo' });
+    }
+
+    try {
+        const puntos = await obtenerHistorico(mercado, simbolo, rango);
+        res.json({ simbolo, mercado, rango, puntos });
+    } catch (error) {
+        res.status(500).json({ error: 'No se pudo obtener el historico', detalle: error.message });
     }
 };
 

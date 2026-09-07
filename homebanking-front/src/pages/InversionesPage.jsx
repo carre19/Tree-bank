@@ -20,6 +20,92 @@ const PANELES = {
 // golpearlo mas seguido de lo que tiene sentido
 const INTERVALO_REFRESCO_MS = 15000;
 
+const RANGOS_HISTORICO = ['1M', '3M', '6M', '1A', 'MAX'];
+
+// Grafico de precio historico (SVG hecho a mano, sin librerias, igual que
+// las ruedas de categorias de Movimientos): una linea con relleno degradado,
+// verde o rojo segun si subio o bajo en el periodo elegido.
+function GraficoHistorico({ mercado, simbolo, onCerrar }) {
+  const [rango, setRango] = useState('1M');
+  const [puntos, setPuntos] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let activo = true;
+    setCargando(true);
+    setError('');
+    api.get(`/inversiones/historico/${mercado}/${simbolo}`, { params: { rango } })
+      .then((res) => { if (activo) setPuntos(res.data.puntos); })
+      .catch(() => { if (activo) setError('No se pudo obtener el histórico'); })
+      .finally(() => { if (activo) setCargando(false); });
+    return () => { activo = false; };
+  }, [mercado, simbolo, rango]);
+
+  const grafico = useMemo(() => {
+    if (puntos.length < 2) return null;
+    const valores = puntos.map((p) => Number(p.cierre));
+    const min = Math.min(...valores);
+    const max = Math.max(...valores);
+    const rangoY = max - min || 1;
+    const W = 600, H = 160, PAD = 6;
+
+    const coords = valores.map((v, i) => [
+      (i / (valores.length - 1)) * (W - PAD * 2) + PAD,
+      H - PAD - ((v - min) / rangoY) * (H - PAD * 2),
+    ]);
+    const pathD = coords.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`).join(' ');
+    const areaD = `${pathD} L ${coords[coords.length - 1][0].toFixed(2)} ${H - PAD} L ${coords[0][0].toFixed(2)} ${H - PAD} Z`;
+    const cambioPct = ((valores[valores.length - 1] - valores[0]) / valores[0]) * 100;
+
+    return { pathD, areaD, cambioPct, positivo: cambioPct >= 0 };
+  }, [puntos]);
+
+  return (
+    <div className="card anim-up-1" style={{ marginBottom: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700 }}>Histórico de {simbolo}</h3>
+        <button className="btn-icon-ghost" onClick={onCerrar} title="Cerrar"><Icon name="x" size={16} /></button>
+      </div>
+
+      <div className="chips" style={{ marginBottom: 14 }}>
+        {RANGOS_HISTORICO.map((r) => (
+          <button key={r} className={`chip${rango === r ? ' active' : ''}`} onClick={() => setRango(r)}>{r}</button>
+        ))}
+      </div>
+
+      {cargando ? (
+        <div className="loading-center"><div className="spinner" />Cargando histórico…</div>
+      ) : error || !grafico ? (
+        <div className="empty">
+          <div className="empty-icon"><Icon name="trending" size={24} /></div>
+          <p>{error || 'Sin datos históricos suficientes para este símbolo'}</p>
+        </div>
+      ) : (
+        <>
+          <p style={{ fontSize: 13.5, marginBottom: 8, color: grafico.positivo ? 'var(--ok)' : 'var(--red)', fontWeight: 600 }}>
+            {grafico.positivo ? '+' : ''}{fmt(grafico.cambioPct)}% en el período
+          </p>
+          <svg viewBox="0 0 600 160" style={{ width: '100%', height: 160, display: 'block' }} preserveAspectRatio="none">
+            <defs>
+              <linearGradient id={`grad-${mercado}-${simbolo}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={grafico.positivo ? 'var(--ok)' : 'var(--red)'} stopOpacity="0.25" />
+                <stop offset="100%" stopColor={grafico.positivo ? 'var(--ok)' : 'var(--red)'} stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d={grafico.areaD} fill={`url(#grad-${mercado}-${simbolo})`} stroke="none" />
+            <path d={grafico.pathD} fill="none" stroke={grafico.positivo ? 'var(--ok)' : 'var(--red)'} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+          </svg>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-3)' }}>
+            <span>{puntos[0].fecha}</span>
+            <span>{puntos[puntos.length - 1].fecha}</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function InversionesPage() {
   const [tab, setTab] = useState('ACCION_AR');
 
@@ -70,6 +156,7 @@ function PanelAcciones({ mercado }) {
   const [cantidad, setCantidad] = useState('');
   const [procesando, setProcesando] = useState(false);
   const [resultado, setResultado] = useState(null);
+  const [historicoSimbolo, setHistoricoSimbolo] = useState(null);
 
   const intervaloRef = useRef(null);
 
@@ -103,6 +190,7 @@ function PanelAcciones({ mercado }) {
     setOperando(null);
     setResultado(null);
     setBusqueda('');
+    setHistoricoSimbolo(null);
 
     intervaloRef.current = setInterval(cargarCotizaciones, INTERVALO_REFRESCO_MS);
     return () => clearInterval(intervaloRef.current);
@@ -184,10 +272,15 @@ function PanelAcciones({ mercado }) {
               const positivo = (c.variacion_pct ?? 0) >= 0;
               return (
                 <div key={c.simbolo} className="tx-item">
-                  <div className="tx-icon" style={{ background: 'var(--surface-2)', color: 'var(--accent)', border: '1px solid var(--border)' }}>
+                  <div
+                    className="tx-icon"
+                    style={{ background: 'var(--surface-2)', color: 'var(--accent)', border: '1px solid var(--border)', cursor: 'pointer' }}
+                    onClick={() => setHistoricoSimbolo(c.simbolo)}
+                    title={`Ver histórico de ${c.simbolo}`}
+                  >
                     <Icon name="trending" size={17} />
                   </div>
-                  <div className="tx-info">
+                  <div className="tx-info" style={{ cursor: 'pointer' }} onClick={() => setHistoricoSimbolo(c.simbolo)}>
                     <p className="tx-desc">{c.simbolo}</p>
                     <p className="tx-date" style={{ color: positivo ? 'var(--ok)' : 'var(--red)' }}>
                       {c.variacion_pct != null ? `${positivo ? '+' : ''}${fmt(c.variacion_pct)}%` : 'sin variación hoy'}
@@ -255,6 +348,10 @@ function PanelAcciones({ mercado }) {
         </div>
       )}
 
+      {historicoSimbolo && (
+        <GraficoHistorico mercado={mercado} simbolo={historicoSimbolo} onCerrar={() => setHistoricoSimbolo(null)} />
+      )}
+
       <h3 className="section-title anim-up-2">Mi cartera</h3>
       {cargandoTenencias ? (
         <div className="loading-center"><div className="spinner" />Cargando tu cartera…</div>
@@ -272,8 +369,10 @@ function PanelAcciones({ mercado }) {
             const gananciaPositiva = (ganancia ?? 0) >= 0;
             return (
               <div key={t.id_tenencia} className="tx-item" style={{ flexWrap: 'wrap' }}>
-                <div className="tx-icon in"><Icon name="trending" size={19} /></div>
-                <div className="tx-info">
+                <div className="tx-icon in" style={{ cursor: 'pointer' }} onClick={() => setHistoricoSimbolo(t.simbolo)} title={`Ver histórico de ${t.simbolo}`}>
+                  <Icon name="trending" size={19} />
+                </div>
+                <div className="tx-info" style={{ cursor: 'pointer' }} onClick={() => setHistoricoSimbolo(t.simbolo)}>
                   <p className="tx-desc">{t.simbolo} · {fmt(t.cantidad, 0)} {Number(t.cantidad) === 1 ? 'unidad' : 'unidades'}</p>
                   <p className="tx-date">PPC {simbolo} {fmt(t.precio_promedio)}{t.precio_actual != null ? ` · actual ${simbolo} ${fmt(t.precio_actual)}` : ''}</p>
                 </div>

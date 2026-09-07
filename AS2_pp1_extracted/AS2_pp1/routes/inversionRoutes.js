@@ -12,6 +12,7 @@ const { verificarToken } = require('../middleware/authMiddleware');
 
 // Acciones (argentinas y extranjeras)
 router.get('/inversiones/cotizaciones/:mercado', verificarToken, inversionController.obtenerCotizacionesPanel);
+router.get('/inversiones/historico/:mercado/:simbolo', verificarToken, inversionController.obtenerHistoricoSimbolo);
 router.get('/inversiones/tenencias', verificarToken, inversionController.obtenerTenencias);
 router.post('/inversiones/comprar', verificarToken, inversionController.comprar);
 router.post('/inversiones/vender', verificarToken, inversionController.vender);
