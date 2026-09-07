@@ -39,6 +39,7 @@ const reservaRoutes  = require('./routes/reservaRoutes');  // /api/cuentas/:cbu/
 const servicioRoutes = require('./routes/servicioRoutes'); // /api/servicios (agua, luz, gas)
 const recargaRoutes  = require('./routes/recargaRoutes');  // /api/recargas (recarga de celular)
 const reporteRoutes  = require('./routes/reporteRoutes');  // /api/reportes (reportes de problemas de la app)
+const inversionRoutes = require('./routes/inversionRoutes'); // /api/inversiones y /api/cauciones
 
 // tablaController se usa directamente aquí (no tiene archivo de rutas propio)
 const tablaController = require('./controllers/tablaController');
@@ -56,6 +57,9 @@ const { ejecutarVerificacionMoraAutomatica } = require('./services/moraService')
 
 // Chequeo automático de pólizas impagas (caducidad), para el otro cron job
 const { ejecutarVerificacionPolizasVencidas } = require('./services/polizaService');
+
+// Liquidación automática de cauciones vencidas, para el otro cron job
+const { ejecutarLiquidacionCauciones } = require('./services/caucionLiquidacionService');
 
 // ---- MIDDLEWARES GLOBALES ----
 // Un middleware es código que se ejecuta ANTES de llegar a las rutas.
@@ -114,6 +118,7 @@ app.use('/api', reservaRoutes);
 app.use('/api', servicioRoutes);
 app.use('/api', recargaRoutes);
 app.use('/api', reporteRoutes);
+app.use('/api', inversionRoutes);
 
 // Esta ruta vuelca una tabla entera de la base: es una herramienta de back-office,
 // solo para ADMIN. Estando abierta, GET /api/tablas/personas devolvia el DNI, el
@@ -190,4 +195,13 @@ cron.schedule('0 6 * * *', async () => {
     console.log('🛡️  Verificación automática de pólizas vencidas ejecutándose...');
     const { candidatas, canceladas } = await ejecutarVerificacionPolizasVencidas();
     console.log(`🛡️  Pólizas vencidas revisadas: ${candidatas}, canceladas: ${canceladas}`);
+});
+
+// ---- CRON JOB: LIQUIDACIÓN AUTOMÁTICA DE CAUCIONES ----
+// Una vez por día busca cauciones ACTIVAS cuyo plazo ya se cumplió y
+// acredita capital + interés a la caja en ARS de origen.
+cron.schedule('0 6 * * *', async () => {
+    console.log('💰 Liquidación automática de cauciones ejecutándose...');
+    const { candidatas, liquidadas } = await ejecutarLiquidacionCauciones();
+    console.log(`💰 Cauciones vencidas revisadas: ${candidatas}, liquidadas: ${liquidadas}`);
 });

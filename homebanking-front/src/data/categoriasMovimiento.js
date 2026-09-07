@@ -14,6 +14,7 @@ export const CATEGORIAS = {
   SERVICIOS:      { label: 'Servicios',      icon: 'receipt',  color: '#06B6D4' },
   CAMBIO:         { label: 'Cambio de divisa', icon: 'swap',   color: '#F97316' },
   RECARGAS:       { label: 'Recargas',       icon: 'phone',    color: '#22C55E' },
+  INVERSIONES:    { label: 'Inversiones',    icon: 'trending', color: '#0EA5E9' },
 };
 
 // signo: 'in' (suma), 'out' (resta), 'neutro' (no llegó a mover plata)
@@ -31,6 +32,10 @@ const MOVIMIENTOS = {
   CAMBIO_INGRESO:         { categoria: 'CAMBIO',          signo: 'in',  label: 'Cambio de divisa' },
   CAMBIO_EGRESO:          { categoria: 'CAMBIO',          signo: 'out', label: 'Cambio de divisa' },
   RECARGA_CELULAR:        { categoria: 'RECARGAS',        signo: 'out', label: 'Recarga de celular' },
+  COMPRA_ACCION:          { categoria: 'INVERSIONES',     signo: 'out', label: 'Compra de acciones' },
+  VENTA_ACCION:           { categoria: 'INVERSIONES',     signo: 'in',  label: 'Venta de acciones' },
+  CAUCION_COLOCADA:       { categoria: 'INVERSIONES',     signo: 'out', label: 'Caución colocada' },
+  CAUCION_LIQUIDADA:      { categoria: 'INVERSIONES',     signo: 'in',  label: 'Caución liquidada' },
 };
 
 const DEFAULT = { categoria: 'TRANSFERENCIAS', signo: 'out', label: 'Movimiento' };

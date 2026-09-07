@@ -15,6 +15,7 @@ const ACCIONES = [
   { to: '/seguros',        icon: 'insurance', label: 'Seguros' },
   { to: '/servicios',      icon: 'receipt',   label: 'Servicios' },
   { to: '/recargas',       icon: 'phone',     label: 'Recargar' },
+  { to: '/inversiones',    icon: 'trending',  label: 'Inversiones' },
   { to: '/reservas',       icon: 'vault',     label: 'Reservas' },
 ];
 

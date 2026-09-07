@@ -87,6 +87,8 @@ node scripts/admin.js password <dni> <nueva>     # define o resetea una contrase
 - Reportes de problemas: cualquier usuario puede reportar algo que no funcionó desde
   cualquier pantalla de la app; el panel de administrador los lista y permite marcarlos
   como resueltos (ver [Reportes de problemas](#reportes-de-problemas))
+- Inversiones al estilo IOL: acciones argentinas y extranjeras a precio real en vivo, y
+  cauciones a plazo (ver [Inversiones](#inversiones))
 - Perfil editable con foto, cambio de alias y de contraseña
 - Sincronización automática con el Banco Central cada 15 minutos
 
@@ -123,3 +125,41 @@ logueado o no, por si el problema es justo no poder entrar.
 - Aviso opcional por webhook: si se completa `REPORTES_WEBHOOK_URL` en el `.env` (acepta una URL
   de Discord o de Slack), cada reporte nuevo manda un aviso ahí al toque. Sin configurar, los
   reportes se siguen guardando igual — alcanza con revisarlos en el panel de administrador.
+
+## Inversiones
+
+Desde `/inversiones`, un cliente puede operar tres tipos de instrumento, con pestañas
+independientes para cada uno:
+
+- **Acciones argentinas** (`ACCION_AR`) — se compran y venden en ARS contra la caja en pesos.
+- **Acciones extranjeras** (`ACCION_EX`) — mercado de EE.UU. (miles de tickers); mientras no se
+  busca nada se muestra un panel acotado de populares (AAPL, MSFT, TSLA, etc.). Se operan en USD
+  contra la caja en dólares — hay que abrirla primero desde el Dashboard (mismo flujo que Cambio).
+- **Cauciones** — se presta dinero a un plazo corto (1, 7, 15 o 30 días) y se cobra un interés al
+  vencimiento; se liquidan solas por cron una vez por día.
+
+**Cotizaciones reales, no simuladas**: `services/mercadoService.js` consulta
+[data912.com](https://data912.com), una API pública y gratuita (sin API key) con datos reales de
+BYMA y del mercado estadounidense. Se cachea 15 segundos de nuestro lado para no saturarla; si
+data912 no responde, se devuelve el último valor bueno conocido en vez de romper la pantalla. El
+precio de cada compra/venta lo fija siempre el servidor con esa cotización — nunca se confía en un
+precio que venga del body del pedido.
+
+**Cauciones: por qué la tasa es simulada.** A diferencia de las acciones, la tasa de caución de
+BYMA (el índice que calculan en tiempo real) no tiene una API pública y gratuita — BYMA la vende
+como dato de mercado a las casas de bolsa. Por eso `models/caucionModel.js` usa una tabla de tasas
+fija por plazo, del orden de las tasas reales en pesos — el mismo enfoque que ya usa
+`TASAS_POR_CUOTAS` en `prestamoModel.js` para los préstamos —, y el interés se calcula con la
+fórmula de interés simple estándar (`monto × tasa_anual/100 × plazo_dias/365`).
+
+Endpoints (todos requieren token, se opera siempre contra la cuenta propia):
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/inversiones/cotizaciones/:mercado` | Panel completo en vivo (`ACCION_AR` o `ACCION_EX`) |
+| GET | `/api/inversiones/tenencias` | Cartera del usuario, con la cotización actual de cada símbolo |
+| POST | `/api/inversiones/comprar` | `{ mercado, simbolo, cantidad }` |
+| POST | `/api/inversiones/vender` | `{ mercado, simbolo, cantidad }` |
+| GET | `/api/cauciones/plazos` | Tabla de tasas vigente por plazo |
+| GET | `/api/cauciones` | Cauciones del usuario |
+| POST | `/api/cauciones` | `{ monto, plazo_dias }` |
