@@ -37,13 +37,15 @@ const tarjetaRoutes  = require('./routes/tarjetaRoutes');  // /api/tarjetas (tar
 const seguroRoutes   = require('./routes/seguroRoutes');   // /api/seguros (polizas)
 const reservaRoutes  = require('./routes/reservaRoutes');  // /api/cuentas/:cbu/reservas, /api/reservas
 const servicioRoutes = require('./routes/servicioRoutes'); // /api/servicios (agua, luz, gas)
+const recargaRoutes  = require('./routes/recargaRoutes');  // /api/recargas (recarga de celular)
+const reporteRoutes  = require('./routes/reporteRoutes');  // /api/reportes (reportes de problemas de la app)
 
 // tablaController se usa directamente aquí (no tiene archivo de rutas propio)
 const tablaController = require('./controllers/tablaController');
 
 // Middlewares de seguridad: el guardián de rutas y el limitador de intentos de login
 const { verificarToken, verificarAdmin } = require('./middleware/authMiddleware');
-const { limitarIntentos } = require('./middleware/rateLimit');
+const { limitarIntentos, limitarReportes } = require('./middleware/rateLimit');
 const { ocultarDetalles } = require('./middleware/ocultarDetalles');
 
 // También importamos la función de sync para usarla en el cron job
@@ -93,6 +95,10 @@ app.use('/api/auth/login', limitarIntentos);
 app.use('/api/auth/register', limitarIntentos);
 app.use('/api/auth/olvide-password', limitarIntentos);
 
+// El endpoint de reportes es publico (puede fallar justo el login) asi que
+// tambien va limitado por IP, para que no lo usen para llenar la tabla de spam
+app.use('/api/reportes', limitarReportes);
+
 app.use('/api', authRoutes);
 app.use('/api', personaRoutes);
 app.use('/api', bancoRoutes);
@@ -106,6 +112,8 @@ app.use('/api', tarjetaRoutes);
 app.use('/api', seguroRoutes);
 app.use('/api', reservaRoutes);
 app.use('/api', servicioRoutes);
+app.use('/api', recargaRoutes);
+app.use('/api', reporteRoutes);
 
 // Esta ruta vuelca una tabla entera de la base: es una herramienta de back-office,
 // solo para ADMIN. Estando abierta, GET /api/tablas/personas devolvia el DNI, el

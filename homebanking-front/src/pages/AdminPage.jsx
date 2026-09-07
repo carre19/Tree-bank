@@ -24,6 +24,10 @@ export default function AdminPage() {
   const [seguros, setSeguros]                 = useState([]);
   const [cargandoSeguros, setCargandoSeguros] = useState(true);
 
+  const [reportes, setReportes]               = useState([]);
+  const [cargandoReportes, setCargandoReportes] = useState(true);
+  const [actualizandoReporte, setActualizandoReporte] = useState(null); // id de reporte en curso
+
   useEffect(() => {
     const cargar = async () => {
       setCargando(true);
@@ -41,7 +45,32 @@ export default function AdminPage() {
     cargarPrestamos();
     cargarTarjetas();
     cargarSeguros();
+    cargarReportes();
   }, []);
+
+  const cargarReportes = async () => {
+    setCargandoReportes(true);
+    try {
+      const res = await api.get('/admin/reportes');
+      setReportes(res.data);
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudieron cargar los reportes');
+    } finally {
+      setCargandoReportes(false);
+    }
+  };
+
+  const cambiarEstadoReporte = async (reporte, estado) => {
+    setActualizandoReporte(reporte.id);
+    try {
+      await api.put(`/admin/reportes/${reporte.id}/estado`, { estado });
+      setReportes((prev) => prev.map((r) => (r.id === reporte.id ? { ...r, estado } : r)));
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo actualizar el reporte');
+    } finally {
+      setActualizandoReporte(null);
+    }
+  };
 
   const cargarSeguros = async () => {
     setCargandoSeguros(true);
@@ -193,6 +222,62 @@ export default function AdminPage() {
             <p className="stat-value" style={{ color: 'var(--warn)' }}>{totales.bloqueadas}</p>
           </div>
         </div>
+        <div className="stat-card">
+          <div className="stat-icon" style={{ background: 'var(--red-bg)', color: 'var(--red)', border: '1px solid var(--red-border)' }}>
+            <Icon name="megaphone" size={19} />
+          </div>
+          <div>
+            <p className="stat-label">Reportes abiertos</p>
+            <p className="stat-value" style={{ color: 'var(--red)' }}>{reportes.filter((r) => r.estado === 'ABIERTO').length}</p>
+          </div>
+        </div>
+      </div>
+
+      <h3 className="section-title anim-up-1">Reportes de problemas</h3>
+
+      {cargandoReportes && (
+        <div className="loading-center">
+          <div className="spinner" />
+          Cargando reportes…
+        </div>
+      )}
+
+      {!cargandoReportes && reportes.length === 0 && (
+        <div className="empty anim-up-1">
+          <div className="empty-icon"><Icon name="megaphone" size={26} /></div>
+          <p>Todavía no llegó ningún reporte</p>
+        </div>
+      )}
+
+      <div className="anim-up-1" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+        {reportes.map((r) => (
+          <div key={r.id} className="tx-item" style={{ flexWrap: 'wrap' }}>
+            <div className={`tx-icon ${r.estado === 'ABIERTO' ? 'out' : 'in'}`}>
+              <Icon name="megaphone" size={19} />
+            </div>
+            <div className="tx-info">
+              <p className="tx-desc">{r.descripcion}</p>
+              <p className="tx-date">
+                {r.pagina ? `${r.pagina} · ` : ''}
+                {r.nombre ? `${r.nombre} ${r.apellido} · DNI ${r.dni}` : 'Anónimo'}
+                {r.contacto ? ` · ${r.contacto}` : ''}
+                {' · '}{new Date(r.fecha).toLocaleString('es-AR')}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span className={`tx-badge ${r.estado === 'ABIERTO' ? 'out' : 'in'}`}>
+                {r.estado === 'ABIERTO' ? 'Abierto' : 'Resuelto'}
+              </span>
+              <button
+                className="btn-ghost"
+                disabled={actualizandoReporte === r.id}
+                onClick={() => cambiarEstadoReporte(r, r.estado === 'ABIERTO' ? 'RESUELTO' : 'ABIERTO')}
+              >
+                {r.estado === 'ABIERTO' ? 'Marcar resuelto' : 'Reabrir'}
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
 
       {error && (

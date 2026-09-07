@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import TreeBankLogo from './TreeBankLogo';
 import Icon from './Icon';
@@ -33,6 +33,7 @@ const NAV_ITEMS_ADMIN = [
 export default function AppLayout({ children }) {
   const { usuario, logout, foto } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const NAV_ITEMS = usuario?.esAdmin ? NAV_ITEMS_ADMIN : NAV_ITEMS_CLIENTE;
   const NAV_ITEMS_MOBILE = usuario?.esAdmin ? NAV_ITEMS_ADMIN : NAV_ITEMS_CLIENTE_MOBILE;
 
@@ -73,6 +74,15 @@ export default function AppLayout({ children }) {
         </nav>
 
         <div className="sidebar-foot">
+          <button
+            className="nav-item"
+            style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+            onClick={() => navigate('/reportar-problema', { state: { origen: location.pathname } })}
+          >
+            <Icon name="megaphone" size={19} />
+            Reportar un problema
+          </button>
+
           <ThemeToggle />
 
           <div className="sidebar-user">
@@ -99,6 +109,13 @@ export default function AppLayout({ children }) {
             <span className="topbar-brand-txt">TREE BANK</span>
           </div>
           <div className="topbar-right">
+            <button
+              className="btn-icon-ghost"
+              onClick={() => navigate('/reportar-problema', { state: { origen: location.pathname } })}
+              title="Reportar un problema"
+            >
+              <Icon name="megaphone" size={17} />
+            </button>
             <ThemeToggle />
             {avatar}
             <button className="btn-icon-ghost" onClick={handleLogout} title="Cerrar sesión">

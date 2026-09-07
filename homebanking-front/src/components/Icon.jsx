@@ -40,6 +40,8 @@ const paths = {
   bolt:      <path d="M12.5 2 4 14h6l-1 8 8.5-12h-6l1-8z" />,
   flame:     <path d="M12 2.5c1 3-3 4.5-3 8a3 3 0 0 0 6 0c0-1-.5-2-1-2.5.5 3 3 3.5 3 6.5a5 5 0 0 1-10 0c0-5 3.5-6.5 5-12z" />,
   receipt:   <><path d="M6 2h12v20l-2.5-1.5L13 22l-2-1.5L9 22l-2.5-1.5L4 22V4a2 2 0 0 1 2-2z" /><path d="M8 7h8" /><path d="M8 11h8" /><path d="M8 15h5" /></>,
+  phone:     <><rect x="6" y="2.5" width="12" height="19" rx="2.5" /><path d="M10.5 18.5h3" /></>,
+  megaphone: <><path d="M3 11v2a2 2 0 0 0 2 2h1l2.5 5.5L11 20l-1.5-5" /><path d="M8 13V6l11-3.5v14L8 13z" /><path d="M19 8.5c1.2.6 2 1.8 2 3s-.8 2.4-2 3" /></>,
 };
 
 export default function Icon({ name, size = 20, strokeWidth = 2, className = '', style }) {

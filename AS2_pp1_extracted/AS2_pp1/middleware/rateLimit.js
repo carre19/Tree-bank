@@ -63,4 +63,49 @@ const limitarIntentos = (req, res, next) => {
     next();
 };
 
-module.exports = { limitarIntentos };
+// ---- Limitador generico (para endpoints publicos que no son de login) ----
+// A diferencia de limitarIntentos, este cuenta TODOS los pedidos (no solo los
+// fallidos): sirve para frenar spam contra un endpoint publico como el de
+// reportes, donde "fallido" no tiene mucho sentido (cualquier reporte bien
+// formado es un 201).
+const crearLimitadorSimple = ({ max, ventanaMs, mensaje }) => {
+    const porIp = new Map();
+
+    const limpiezaSimple = setInterval(() => {
+        const ahora = Date.now();
+        for (const [ip, dato] of porIp) {
+            if (dato.expira <= ahora) porIp.delete(ip);
+        }
+    }, ventanaMs);
+    if (typeof limpiezaSimple.unref === 'function') limpiezaSimple.unref();
+
+    return (req, res, next) => {
+        const ip = req.ip || req.socket?.remoteAddress || 'desconocida';
+        const ahora = Date.now();
+        const dato = porIp.get(ip);
+
+        if (!dato || dato.expira <= ahora) {
+            porIp.set(ip, { intentos: 1, expira: ahora + ventanaMs });
+            return next();
+        }
+
+        dato.intentos++;
+        if (dato.intentos > max) {
+            const segundos = Math.ceil((dato.expira - ahora) / 1000);
+            res.set('Retry-After', String(segundos));
+            return res.status(429).json({ error: mensaje });
+        }
+
+        next();
+    };
+};
+
+// 8 reportes cada 15 minutos por IP: alcanza de sobra para un usuario real
+// reportando un problema, y frena a un bot que intente llenar la tabla
+const limitarReportes = crearLimitadorSimple({
+    max: 8,
+    ventanaMs: 15 * 60 * 1000,
+    mensaje: 'Demasiados reportes enviados. Volve a intentar en unos minutos.'
+});
+
+module.exports = { limitarIntentos, crearLimitadorSimple, limitarReportes };

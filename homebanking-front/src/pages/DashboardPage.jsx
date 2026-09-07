@@ -14,6 +14,7 @@ const ACCIONES = [
   { to: '/tarjetas',       icon: 'card',      label: 'Tarjetas' },
   { to: '/seguros',        icon: 'insurance', label: 'Seguros' },
   { to: '/servicios',      icon: 'receipt',   label: 'Servicios' },
+  { to: '/recargas',       icon: 'phone',     label: 'Recargar' },
   { to: '/reservas',       icon: 'vault',     label: 'Reservas' },
 ];
 

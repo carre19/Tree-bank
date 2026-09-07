@@ -15,9 +15,11 @@ import CambioPage from './pages/CambioPage';
 import TarjetasPage from './pages/TarjetasPage';
 import SegurosPage from './pages/SegurosPage';
 import ServiciosPage from './pages/ServiciosPage';
+import RecargasPage from './pages/RecargasPage';
 import ReservasPage from './pages/ReservasPage';
 import PerfilPage from './pages/PerfilPage';
 import AdminPage from './pages/AdminPage';
+import ReportarProblemaPage from './pages/ReportarProblemaPage';
 
 function Cargando() {
   return (
@@ -46,6 +48,16 @@ function RutaAdmin({ children }) {
   return usuario.esAdmin ? children : <Navigate to="/dashboard" />;
 }
 
+// Ruta que requiere estar logueado, sin importar el rol (clientes Y admins).
+// A diferencia de RutaPrivada, no redirige a un admin a /admin: la usan
+// pantallas que tiene sentido que use cualquiera, como reportar un problema.
+function RutaAutenticada({ children }) {
+  const { usuario, cargando } = useAuth();
+  if (cargando) return <Cargando />;
+  if (!usuario) return <Navigate to="/login" />;
+  return children;
+}
+
 function AppRoutes() {
   const { usuario, splash, setSplash } = useAuth();
   const inicio = usuario ? (usuario.esAdmin ? '/admin' : '/dashboard') : '/login';
@@ -69,9 +81,11 @@ function AppRoutes() {
         <Route path="/tarjetas" element={<RutaPrivada><TarjetasPage /></RutaPrivada>} />
         <Route path="/seguros" element={<RutaPrivada><SegurosPage /></RutaPrivada>} />
         <Route path="/servicios" element={<RutaPrivada><ServiciosPage /></RutaPrivada>} />
+        <Route path="/recargas" element={<RutaPrivada><RecargasPage /></RutaPrivada>} />
         <Route path="/reservas" element={<RutaPrivada><ReservasPage /></RutaPrivada>} />
         <Route path="/perfil" element={<RutaPrivada><PerfilPage /></RutaPrivada>} />
         <Route path="/admin" element={<RutaAdmin><AdminPage /></RutaAdmin>} />
+        <Route path="/reportar-problema" element={<RutaAutenticada><ReportarProblemaPage /></RutaAutenticada>} />
       </Routes>
     </>
   );
