@@ -81,6 +81,12 @@ node scripts/admin.js password <dni> <nueva>     # define o resetea una contrase
     transferencias, que se listan aparte abajo),
   - filtro por período (hoy, esta semana, este mes, todo, o un rango de fechas propio),
   - gráfico de flujo de dinero por día y filtro por tipo de gasto
+- Pago de servicios (agua, luz, gas) con factura simulada
+- Recarga de celular (Movistar, Personal, Claro) en denominaciones fijas, débito directo
+  de la caja en ARS
+- Reportes de problemas: cualquier usuario puede reportar algo que no funcionó desde
+  cualquier pantalla de la app; el panel de administrador los lista y permite marcarlos
+  como resueltos (ver [Reportes de problemas](#reportes-de-problemas))
 - Perfil editable con foto, cambio de alias y de contraseña
 - Sincronización automática con el Banco Central cada 15 minutos
 
@@ -103,3 +109,17 @@ node scripts/admin.js password <dni> <nueva>     # define o resetea una contrase
   dejaba pasar).
 - **Errores**: en producción (`NODE_ENV=production`) las respuestas 5xx nunca exponen el mensaje
   interno (de Postgres, de axios, etc.) — ese detalle solo queda en el log del servidor.
+
+## Reportes de problemas
+
+Cualquiera puede reportar un problema desde el botón "Reportar un problema" (visible en el
+sidebar y en la topbar de toda la app, tanto para clientes como para el admin) — funciona
+logueado o no, por si el problema es justo no poder entrar.
+
+- `POST /api/reportes`: público, limitado a 8 pedidos por IP cada 15 minutos para frenar spam.
+  Si el pedido trae un token válido, el reporte queda asociado a esa persona; si no, queda anónimo.
+- `GET /api/admin/reportes` y `PUT /api/admin/reportes/:id/estado`: solo ADMIN. Listan los
+  reportes (más recientes primero) y permiten marcarlos como resueltos o reabrirlos.
+- Aviso opcional por webhook: si se completa `REPORTES_WEBHOOK_URL` en el `.env` (acepta una URL
+  de Discord o de Slack), cada reporte nuevo manda un aviso ahí al toque. Sin configurar, los
+  reportes se siguen guardando igual — alcanza con revisarlos en el panel de administrador.
