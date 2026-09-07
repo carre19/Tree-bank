@@ -25,11 +25,13 @@ const RANGOS_HISTORICO = ['1M', '3M', '6M', '1A', 'MAX'];
 // Grafico de precio historico (SVG hecho a mano, sin librerias, igual que
 // las ruedas de categorias de Movimientos): una linea con relleno degradado,
 // verde o rojo segun si subio o bajo en el periodo elegido.
-function GraficoHistorico({ mercado, simbolo, onCerrar }) {
+function GraficoHistorico({ mercado, simbolo, monedaPrefijo, onCerrar }) {
   const [rango, setRango] = useState('1M');
   const [puntos, setPuntos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
+  const [hover, setHover] = useState(null); // indice del punto bajo el mouse
+  const svgWrapRef = useRef(null);
 
   useEffect(() => {
     let activo = true;
@@ -41,6 +43,8 @@ function GraficoHistorico({ mercado, simbolo, onCerrar }) {
       .finally(() => { if (activo) setCargando(false); });
     return () => { activo = false; };
   }, [mercado, simbolo, rango]);
+
+  useEffect(() => setHover(null), [rango]);
 
   const grafico = useMemo(() => {
     if (puntos.length < 2) return null;
@@ -58,8 +62,18 @@ function GraficoHistorico({ mercado, simbolo, onCerrar }) {
     const areaD = `${pathD} L ${coords[coords.length - 1][0].toFixed(2)} ${H - PAD} L ${coords[0][0].toFixed(2)} ${H - PAD} Z`;
     const cambioPct = ((valores[valores.length - 1] - valores[0]) / valores[0]) * 100;
 
-    return { pathD, areaD, cambioPct, positivo: cambioPct >= 0 };
+    return { coords, W, H, cambioPct, positivo: cambioPct >= 0, pathD, areaD };
   }, [puntos]);
+
+  // Mueve el mouse (o el dedo) sobre el grafico -> busca el punto mas cercano
+  // en X y lo guarda en "hover" para dibujar la linea guia y el tooltip
+  const handlePuntero = (clientX) => {
+    if (!grafico || !svgWrapRef.current) return;
+    const rect = svgWrapRef.current.getBoundingClientRect();
+    const relX = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    const indice = Math.round(relX * (puntos.length - 1));
+    setHover(indice);
+  };
 
   return (
     <div className="card anim-up-1" style={{ marginBottom: 18 }}>
@@ -84,18 +98,42 @@ function GraficoHistorico({ mercado, simbolo, onCerrar }) {
       ) : (
         <>
           <p style={{ fontSize: 13.5, marginBottom: 8, color: grafico.positivo ? 'var(--ok)' : 'var(--red)', fontWeight: 600 }}>
-            {grafico.positivo ? '+' : ''}{fmt(grafico.cambioPct)}% en el período
+            {hover != null
+              ? `${monedaPrefijo} ${fmt(puntos[hover].cierre, puntos[hover].cierre < 10 ? 4 : 2)} · ${puntos[hover].fecha}`
+              : `${grafico.positivo ? '+' : ''}${fmt(grafico.cambioPct)}% en el período`}
           </p>
-          <svg viewBox="0 0 600 160" style={{ width: '100%', height: 160, display: 'block' }} preserveAspectRatio="none">
-            <defs>
-              <linearGradient id={`grad-${mercado}-${simbolo}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={grafico.positivo ? 'var(--ok)' : 'var(--red)'} stopOpacity="0.25" />
-                <stop offset="100%" stopColor={grafico.positivo ? 'var(--ok)' : 'var(--red)'} stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path d={grafico.areaD} fill={`url(#grad-${mercado}-${simbolo})`} stroke="none" />
-            <path d={grafico.pathD} fill="none" stroke={grafico.positivo ? 'var(--ok)' : 'var(--red)'} strokeWidth="2" vectorEffect="non-scaling-stroke" />
-          </svg>
+          <div
+            ref={svgWrapRef}
+            style={{ position: 'relative', touchAction: 'none' }}
+            onMouseMove={(e) => handlePuntero(e.clientX)}
+            onMouseLeave={() => setHover(null)}
+            onTouchMove={(e) => { if (e.touches[0]) handlePuntero(e.touches[0].clientX); }}
+            onTouchEnd={() => setHover(null)}
+          >
+            <svg viewBox={`0 0 ${grafico.W} ${grafico.H}`} style={{ width: '100%', height: 160, display: 'block', cursor: 'crosshair' }} preserveAspectRatio="none">
+              <defs>
+                <linearGradient id={`grad-${mercado}-${simbolo}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={grafico.positivo ? 'var(--ok)' : 'var(--red)'} stopOpacity="0.25" />
+                  <stop offset="100%" stopColor={grafico.positivo ? 'var(--ok)' : 'var(--red)'} stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d={grafico.areaD} fill={`url(#grad-${mercado}-${simbolo})`} stroke="none" />
+              <path d={grafico.pathD} fill="none" stroke={grafico.positivo ? 'var(--ok)' : 'var(--red)'} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+              {hover != null && (
+                <>
+                  <line
+                    x1={grafico.coords[hover][0]} x2={grafico.coords[hover][0]}
+                    y1="0" y2={grafico.H}
+                    stroke="var(--text-3)" strokeWidth="1" strokeDasharray="3 3" vectorEffect="non-scaling-stroke"
+                  />
+                  <circle
+                    cx={grafico.coords[hover][0]} cy={grafico.coords[hover][1]} r="4"
+                    fill={grafico.positivo ? 'var(--ok)' : 'var(--red)'} stroke="var(--surface)" strokeWidth="1.5" vectorEffect="non-scaling-stroke"
+                  />
+                </>
+              )}
+            </svg>
+          </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-3)' }}>
             <span>{puntos[0].fecha}</span>
             <span>{puntos[puntos.length - 1].fecha}</span>
@@ -349,7 +387,7 @@ function PanelAcciones({ mercado }) {
       )}
 
       {historicoSimbolo && (
-        <GraficoHistorico mercado={mercado} simbolo={historicoSimbolo} onCerrar={() => setHistoricoSimbolo(null)} />
+        <GraficoHistorico mercado={mercado} simbolo={historicoSimbolo} monedaPrefijo={simbolo} onCerrar={() => setHistoricoSimbolo(null)} />
       )}
 
       <h3 className="section-title anim-up-2">Mi cartera</h3>
@@ -399,8 +437,14 @@ function PanelAcciones({ mercado }) {
 // ──────────────────────────────────────────────────────────────────────────
 // CAUCIONES: colocar pesos a un plazo corto y cobrar un interés al vencer
 // ──────────────────────────────────────────────────────────────────────────
+// Plazos cortos (1 a 30, uno por uno) vs. plazos largos (saltos), para
+// agrupar el <select> en dos bloques legibles en vez de 44 opciones sueltas
+const esPlazoLargo = (dias) => dias > 30;
+
 function PanelCauciones() {
   const [plazos, setPlazos] = useState([]);
+  const [mercadoAbierto, setMercadoAbierto] = useState(true);
+  const [horario, setHorario] = useState('');
   const [cauciones, setCauciones] = useState([]);
   const [cargando, setCargando] = useState(true);
 
@@ -423,6 +467,8 @@ function PanelCauciones() {
       try {
         const [resPlazos] = await Promise.all([api.get('/cauciones/plazos'), cargarCauciones()]);
         setPlazos(resPlazos.data.plazos);
+        setMercadoAbierto(resPlazos.data.mercado_abierto);
+        setHorario(resPlazos.data.horario);
         setPlazoElegido(resPlazos.data.plazos[0]?.plazo_dias ?? null);
       } catch {
         setError('No se pudieron cargar los plazos de caución');
@@ -473,22 +519,35 @@ function PanelCauciones() {
 
         {cargando ? (
           <div className="loading-center"><div className="spinner" />Cargando…</div>
+        ) : !mercadoAbierto ? (
+          <div className="alert alert-warn" style={{ marginBottom: 0 }}>
+            <Icon name="lock" size={16} />
+            <span>El mercado de cauciones está cerrado. Se opera de {horario}. Volvé a entrar en el próximo horario de rueda.</span>
+          </div>
         ) : (
           <form onSubmit={handleColocar}>
             <div className="field">
               <label className="label">Plazo</label>
-              <div className="chips">
-                {plazos.map((p) => (
-                  <button
-                    type="button"
-                    key={p.plazo_dias}
-                    className={`chip${plazoElegido === p.plazo_dias ? ' active' : ''}`}
-                    onClick={() => setPlazoElegido(p.plazo_dias)}
-                  >
-                    {p.plazo_dias} día{p.plazo_dias > 1 ? 's' : ''} · TNA {p.tasa_anual}%
-                  </button>
-                ))}
-              </div>
+              <select
+                className="input"
+                value={plazoElegido ?? ''}
+                onChange={(e) => setPlazoElegido(Number(e.target.value))}
+              >
+                <optgroup label="1 a 30 días">
+                  {plazos.filter((p) => !esPlazoLargo(p.plazo_dias)).map((p) => (
+                    <option key={p.plazo_dias} value={p.plazo_dias}>
+                      {p.plazo_dias} día{p.plazo_dias > 1 ? 's' : ''} · TNA {p.tasa_anual}%
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Plazos largos">
+                  {plazos.filter((p) => esPlazoLargo(p.plazo_dias)).map((p) => (
+                    <option key={p.plazo_dias} value={p.plazo_dias}>
+                      {p.plazo_dias} días · TNA {p.tasa_anual}%
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
             </div>
 
             <div className="field">

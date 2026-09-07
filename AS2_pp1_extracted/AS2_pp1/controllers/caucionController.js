@@ -1,22 +1,30 @@
 // ============================================================
 // controllers/caucionController.js — CAUCIONES COLOCADAS
-// Coloca pesos a un plazo corto (1, 7, 15 o 30 dias) y cobra un interes al
-// vencimiento (ver caucionModel.js sobre por que la tasa es simulada y no
-// un feed en vivo). El monto colocado sale de la caja en ARS al momento de
-// colocar, y vuelve con el interes ya sumado cuando se liquida (ver
-// services/caucionLiquidacionService.js, que corre solo por cron).
+// Coloca pesos a un plazo elegido (1 a 30 dias, o uno de los plazos largos
+// de caucionModel.js) y cobra un interes al vencimiento (ver caucionModel.js
+// sobre por que la tasa es simulada y no un feed en vivo). Solo se pueden
+// colocar mientras el mercado esta en rueda (dias habiles, 11 a 17hs
+// Argentina) — fuera de ese horario la tasa es 0 y el pedido se rechaza,
+// igual que en la vida real no hay caucion fuera de sesion. El monto sale
+// de la caja en ARS al colocar, y vuelve con el interes ya sumado cuando se
+// liquida (ver services/caucionLiquidacionService.js, que corre por cron).
 // ============================================================
 
 const Persona = require('../models/personaModel');
 const Caucion = require('../models/caucionModel');
 const { validarMonto, aMonto } = require('../utils/validaciones');
 
-// GET /api/cauciones/plazos — Tabla de tasas vigente, para armar el formulario
+// GET /api/cauciones/plazos — Tabla de tasas vigente, para armar el formulario.
+// Si el mercado esta cerrado, todas las tasas vienen en 0 (mercado_abierto: false)
+// para que el frontend pueda avisar y deshabilitar la colocacion.
 exports.obtenerPlazos = (req, res) => {
+    const abierto = Caucion.mercadoAbierto();
     res.json({
-        plazos: Object.entries(Caucion.TASAS_POR_PLAZO).map(([dias, tasa_anual]) => ({
-            plazo_dias: Number(dias),
-            tasa_anual,
+        mercado_abierto: abierto,
+        horario: `${Caucion.HORA_APERTURA}:00 a ${Caucion.HORA_CIERRE}:00, dias habiles (hora Argentina)`,
+        plazos: Caucion.PLAZOS_VALIDOS.map((dias) => ({
+            plazo_dias: dias,
+            tasa_anual: abierto ? Caucion.tasaCurva(dias) : 0,
         })),
     });
 };
@@ -35,11 +43,16 @@ exports.obtenerMisCauciones = async (req, res) => {
 exports.colocar = async (req, res) => {
     const plazo_dias = Number(req.body.plazo_dias);
 
-    if (!Caucion.TASAS_POR_PLAZO[plazo_dias]) {
-        return res.status(400).json({ error: `El plazo debe ser uno de: ${Object.keys(Caucion.TASAS_POR_PLAZO).join(', ')} dias` });
+    if (!Caucion.PLAZOS_VALIDOS.includes(plazo_dias)) {
+        return res.status(400).json({ error: `El plazo debe ser uno de: ${Caucion.PLAZOS_VALIDOS.join(', ')} dias` });
     }
     if (!validarMonto(req.body.monto)) {
         return res.status(400).json({ error: 'El monto debe ser un numero positivo, con hasta 2 decimales y dentro del limite permitido' });
+    }
+    if (!Caucion.mercadoAbierto()) {
+        return res.status(400).json({
+            error: `El mercado de cauciones está cerrado. Se opera de ${Caucion.HORA_APERTURA}:00 a ${Caucion.HORA_CIERRE}:00, días hábiles (hora Argentina) — volvé a intentar en el próximo horario de rueda.`
+        });
     }
     const monto = aMonto(req.body.monto);
 

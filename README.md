@@ -135,8 +135,11 @@ independientes para cada uno:
 - **Acciones extranjeras** (`ACCION_EX`) — mercado de EE.UU. (miles de tickers); mientras no se
   busca nada se muestra un panel acotado de populares (AAPL, MSFT, TSLA, etc.). Se operan en USD
   contra la caja en dólares — hay que abrirla primero desde el Dashboard (mismo flujo que Cambio).
-- **Cauciones** — se presta dinero a un plazo corto (1, 7, 15 o 30 días) y se cobra un interés al
-  vencimiento; se liquidan solas por cron una vez por día.
+- **Cauciones** — se presta dinero a cualquier plazo de 1 a 30 días, o a uno de los plazos largos
+  (40, 50, 60, 70, 80, 90, 100, 120, 150, 180, 200, 250, 300 o 365 días), y se cobra un interés al
+  vencimiento; se liquidan solas por cron una vez por día. Al igual que en el mercado real, solo se
+  pueden colocar en horario de rueda (11 a 17hs, días hábiles, hora Argentina) — fuera de ese
+  horario la tasa es 0% y el formulario se deshabilita hasta la próxima apertura.
 
 **Cotizaciones reales, no simuladas**: `services/mercadoService.js` consulta
 [data912.com](https://data912.com), una API pública y gratuita (sin API key) con datos reales de
@@ -147,13 +150,21 @@ precio que venga del body del pedido.
 
 **Cauciones: por qué la tasa es simulada.** A diferencia de las acciones, la tasa de caución de
 BYMA (el índice que calculan en tiempo real) no tiene una API pública y gratuita — BYMA la vende
-como dato de mercado a las casas de bolsa. Por eso `models/caucionModel.js` usa una tabla de tasas
-fija por plazo, del orden de las tasas reales en pesos — el mismo enfoque que ya usa
-`TASAS_POR_CUOTAS` en `prestamoModel.js` para los préstamos —, y el interés se calcula con la
-fórmula de interés simple estándar (`monto × tasa_anual/100 × plazo_dias/365`).
+como dato de mercado a las casas de bolsa. Por eso `models/caucionModel.js` usa una curva de tasas
+calculada por plazo (logarítmica: arranca en 32% TNA al día y sube hasta ~37% al año), del orden de
+las tasas reales en pesos — mismo espíritu que `TASAS_POR_CUOTAS` en `prestamoModel.js` para los
+préstamos —, y el interés se calcula con la fórmula de interés simple estándar
+(`monto × tasa_anual/100 × plazo_dias/365`).
+
+**Cauciones: horario de rueda.** `mercadoAbierto()` calcula la hora actual en la zona horaria
+`America/Argentina/Buenos_Aires` (con `Intl.DateTimeFormat`, sin depender de en qué zona horaria
+corra el servidor) y solo permite colocar entre las 11:00 y las 17:00 de un día hábil. Fuera de ese
+horario, `GET /api/cauciones/plazos` devuelve `mercado_abierto: false` y tasa 0% en todos los
+plazos, y `POST /api/cauciones` rechaza cualquier intento con un 400.
 
 **Precio histórico**: al hacer clic en cualquier símbolo (del panel de cotizaciones o de la propia
-cartera) se abre un gráfico de precio de cierre, con selector de período (1M/3M/6M/1A/MAX). Para
+cartera) se abre un gráfico de precio de cierre, con selector de período (1M/3M/6M/1A/MAX) y un
+tooltip que sigue al mouse mostrando precio y fecha exactos al pasar por encima del gráfico. Para
 acciones argentinas, data912.com tiene un endpoint de histórico propio con serie diaria completa
 desde 2002; para extranjeras no lo tiene, así que se usa el chart API público de Yahoo Finance
 (`query1.finance.yahoo.com/v8/finance/chart`), sin API key. Cada símbolo+período se cachea 10
