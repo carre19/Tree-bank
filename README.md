@@ -30,7 +30,8 @@ npm run dev            # http://localhost:5173
 ```
 
 > ⚠️ El archivo `.env` con las credenciales reales **no se sube al repositorio**.
-> Usar `.env.example` como plantilla.
+> Usar `.env.example` como plantilla. En producción hay que setear además
+> `CORS_ORIGINS` con el dominio real del frontend (ver [Seguridad](#seguridad)).
 
 ## Roles
 
@@ -54,6 +55,18 @@ Para habilitar el panel en una base de datos ya existente, correr una vez
 `AS2_pp1_extracted/AS2_pp1/init/04_admin_role.sql` en el SQL Editor de Supabase, reemplazando el
 DNI de ejemplo por el de la persona que va a administrar el banco.
 
+Para el día a día (dar o quitar el rol a alguien, o resetear una contraseña) es más simple usar
+`scripts/admin.js` desde el servidor — no hay ningún endpoint de la API que pueda otorgar el rol
+ADMIN, a propósito: sería el agujero de seguridad más grande del sistema.
+
+```bash
+cd AS2_pp1_extracted/AS2_pp1
+node scripts/admin.js listar                    # lista los ADMIN actuales
+node scripts/admin.js promover <dni>             # le da el rol ADMIN a una persona
+node scripts/admin.js quitar <dni>               # le quita el rol (no deja el banco sin ninguno)
+node scripts/admin.js password <dni> <nueva>     # define o resetea una contraseña
+```
+
 ## Funcionalidades principales
 
 - Apertura de cuenta con CBU y alias asignados por el Banco Central
@@ -62,6 +75,31 @@ DNI de ejemplo por el de la persona que va a administrar el banco.
   confirmación y comprobante imprimible — procesadas vía Banco Central
 - Lista de contactos con búsqueda y favoritos
 - Depósitos en efectivo
-- Historial de movimientos con resumen, filtros y gráfico de flujo de dinero
+- Historial de movimientos ("Movimientos") con:
+  - resumen de total recibido/gastado y cantidad de movimientos,
+  - dos ruedas de categorías al estilo Mercado Pago (gastos e ingresos, sin contar
+    transferencias, que se listan aparte abajo),
+  - filtro por período (hoy, esta semana, este mes, todo, o un rango de fechas propio),
+  - gráfico de flujo de dinero por día y filtro por tipo de gasto
 - Perfil editable con foto, cambio de alias y de contraseña
 - Sincronización automática con el Banco Central cada 15 minutos
+
+## Seguridad
+
+- **Autenticación**: contraseñas con bcrypt, sesiones con JWT (8 hs de expiración). El servidor
+  no arranca si falta `JWT_SECRET` en el `.env`.
+- **Autorización por rol**: los endpoints de back-office (`/api/personas`, `/api/tablas/:tabla`,
+  `/api/admin/*`, `/api/central-deudores/:dni`, `/api/bancos/nombre`, `/api/sync`) requieren token
+  y rol ADMIN. Todo lo demás valida además que el recurso pedido (cuenta, préstamo, tarjeta,
+  póliza, reserva) le pertenezca a la persona del token, no a otra.
+- **`/api/tablas/:tabla`** nunca devuelve `password_hash`, ni siquiera a un ADMIN.
+- **Límite de intentos**: `/auth/login`, `/auth/register` y `/auth/olvide-password` cortan a los
+  10 intentos fallidos por IP cada 15 minutos. Un login correcto reinicia el contador.
+- **CORS**: solo se aceptan pedidos desde los orígenes listados en `CORS_ORIGINS` (por defecto,
+  los puertos locales de Vite).
+- **Validación de entradas** centralizada en `utils/validaciones.js`: montos, DNI, email, texto
+  libre y enteros se validan con el mismo criterio en todos los controllers (rechaza `Infinity`,
+  notación científica, texto con basura pegada, arrays, etc., algo que un `parseFloat` suelto
+  dejaba pasar).
+- **Errores**: en producción (`NODE_ENV=production`) las respuestas 5xx nunca exponen el mensaje
+  interno (de Postgres, de axios, etc.) — ese detalle solo queda en el log del servidor.
