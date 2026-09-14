@@ -188,6 +188,18 @@ exports.realizarTransferencia = async (req, res) => {
             return res.status(400).json({ error: `Saldo disponible insuficiente para realizar la transferencia (disponible: $ ${disponibleOrigen.toFixed(2)})` });
         }
 
+        // Si el destino tambien es una cuenta de este banco, se busca ACA (antes de
+        // llamar al Banco Central) para poder cortar si las monedas no coinciden: este
+        // sistema no convierte divisas en una transferencia (para eso esta Cambio), asi
+        // que mover "100" de una caja en USD a una caja en ARS acreditaria 100 pesos por
+        // cada 100 dolares descontados, un tipo de cambio 1:1 regalado.
+        const cuentaDestino = await Persona.getByCbu(cbu_destino);
+        if (cuentaDestino && cuentaDestino.moneda !== cuentaOrigen.moneda) {
+            return res.status(400).json({
+                error: `No se puede transferir de una caja en ${cuentaOrigen.moneda} a una en ${cuentaDestino.moneda}. Cambiá la divisa primero desde Cambio.`
+            });
+        }
+
         // Llamada al Banco Central del profe para que procese la transferencia
         // Mandamos: CBU origen, CBU destino, importe, y el saldo actual del origen
         const respuestaCentral = await centralBank.post('/transactions', {
@@ -222,7 +234,8 @@ exports.realizarTransferencia = async (req, res) => {
                 }, client);
 
                 // Si el destino tambien es de este banco, acreditar localmente
-                const cuentaDestino = await Persona.getByCbu(cbu_destino);
+                // (cuentaDestino ya se busco mas arriba, antes de llamar al Banco Central,
+                // para validar que las monedas coincidan)
                 if (cuentaDestino) {
                     await Persona.acreditarSaldo(cbu_destino, importe, client);
                     await Persona.registrarMovimiento({

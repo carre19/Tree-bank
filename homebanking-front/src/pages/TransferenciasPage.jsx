@@ -26,8 +26,16 @@ export default function TransferenciasPage() {
   const { usuario } = useAuth();
   const navigate = useNavigate();
 
-  const [cbuOrigen, setCbuOrigen]     = useState('');
-  const [saldoActual, setSaldoActual] = useState(null);
+  // Cuentas propias por moneda: la mayoria de los clientes solo tiene la caja en
+  // ARS, pero quien ya opero en Cambio/Inversiones tambien tiene una caja en USD
+  // y necesita poder elegir desde cual transferir (y recibir en la de USD).
+  const [cuentasPropias, setCuentasPropias] = useState({ ARS: null, USD: null });
+  const [monedaOrigen, setMonedaOrigen]     = useState('ARS');
+
+  const cuentaOrigen = cuentasPropias[monedaOrigen];
+  const cbuOrigen     = cuentaOrigen?.cbu || '';
+  const saldoActual   = cuentaOrigen?.saldo ?? null;
+  const simboloMoneda = monedaOrigen === 'USD' ? 'US$' : '$';
 
   // Vista: lista de contactos (estilo MP) o formulario
   const [vista, setVista] = useState('contactos');
@@ -66,15 +74,14 @@ export default function TransferenciasPage() {
   useEffect(() => {
     const cargar = async () => {
       try {
-        // Las transferencias salen siempre de la caja en ARS (si la persona tambien
-        // tiene caja en USD, esta busqueda la ignora a proposito: no alcanza con
-        // "el primer producto", hay que pedir puntualmente el que es CAJA_AHORRO + ARS)
-        // /productos ya viene con cbu, saldo y moneda de cada cuenta propia
+        // /productos ya viene con cbu, saldo y moneda de cada cuenta propia: se guardan
+        // las dos cajas (ARS y, si existe, USD) para poder elegir desde cual transferir
         const productos = await api.get(`/personas/${usuario.id}/productos`);
-        const miCuenta = productos.data.find(
-          p => p.tipo === 'CAJA_AHORRO' && p.moneda === 'ARS' && p.cbu
-        );
-        if (miCuenta) { setCbuOrigen(miCuenta.cbu); setSaldoActual(miCuenta.saldo); }
+        const cajas = productos.data.filter(p => p.tipo === 'CAJA_AHORRO' && p.cbu);
+        setCuentasPropias({
+          ARS: cajas.find(p => p.moneda === 'ARS') || null,
+          USD: cajas.find(p => p.moneda === 'USD') || null,
+        });
 
         const contactosRes = await api.get(`/personas/${usuario.id}/contactos`);
         setContactos(contactosRes.data.map(c => ({ nombre: c.nombre || c.cbu, cbu: c.cbu, alias: null })));
@@ -196,8 +203,12 @@ export default function TransferenciasPage() {
         monto: Number(monto),
         descripcion,
         cbuOrigen,
+        simbolo: simboloMoneda,
       });
-      setSaldoActual(prev => Number(prev) - Number(monto));
+      setCuentasPropias(prev => ({
+        ...prev,
+        [monedaOrigen]: { ...prev[monedaOrigen], saldo: Number(prev[monedaOrigen].saldo) - Number(monto) },
+      }));
       setConfirmando(false);
       setMonto(''); setDestino(''); setDescripcion(''); setDestinatario(null);
     } catch (err) {
@@ -308,22 +319,41 @@ export default function TransferenciasPage() {
             <Icon name="arrowLeft" size={16} /> Contactos
           </button>
 
-          {/* Cuenta de origen */}
+          {/* Cuenta de origen: si tiene las dos cajas, elige de cual transferir */}
+          {cuentasPropias.USD && (
+            <div className="chips anim-up-1" style={{ marginBottom: 10 }}>
+              <button
+                type="button"
+                className={`chip${monedaOrigen === 'ARS' ? ' active' : ''}`}
+                onClick={() => { setMonedaOrigen('ARS'); setDestinatario(null); setError(''); }}
+              >
+                Pesos
+              </button>
+              <button
+                type="button"
+                className={`chip${monedaOrigen === 'USD' ? ' active' : ''}`}
+                onClick={() => { setMonedaOrigen('USD'); setDestinatario(null); setError(''); }}
+              >
+                Dólares
+              </button>
+            </div>
+          )}
+
           <div className="card anim-up-1" style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
             <div className="quick-action-icon" style={{ flexShrink: 0 }}>
               <Icon name="swap" size={22} />
             </div>
             <div style={{ flex: 1, minWidth: 200 }}>
-              <p className="info-row-label">Desde tu cuenta</p>
+              <p className="info-row-label">Desde tu cuenta en {monedaOrigen === 'USD' ? 'dólares' : 'pesos'}</p>
               <p style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', wordBreak: 'break-all' }}>
-                {cbuOrigen || 'Cargando…'}
+                {cbuOrigen || (monedaOrigen === 'USD' ? 'Todavía no abriste tu caja en dólares (hacelo desde Cambio)' : 'Cargando…')}
               </p>
             </div>
             {saldoActual !== null && (
               <div style={{ textAlign: 'right' }}>
                 <p className="info-row-label">Disponible</p>
                 <p style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 17, color: 'var(--green-bright)' }}>
-                  $ {fmt(saldoActual)}
+                  {simboloMoneda} {fmt(saldoActual)}
                 </p>
               </div>
             )}
@@ -373,7 +403,7 @@ export default function TransferenciasPage() {
               <div className="field">
                 <label className="label">Monto a transferir</label>
                 <div className="amount-box">
-                  <span className="amount-sign">$</span>
+                  <span className="amount-sign">{simboloMoneda}</span>
                   <input
                     className="amount-input"
                     type="number"
@@ -431,7 +461,7 @@ export default function TransferenciasPage() {
             <p className="modal-sub">Revisá los datos antes de enviar. Esta operación no se puede deshacer.</p>
 
             <div className="receipt">
-              <p className="receipt-amount">$ {fmt(monto)}</p>
+              <p className="receipt-amount">{simboloMoneda} {fmt(monto)}</p>
               <div className="receipt-row"><span className="k">Para</span><span className="v">{destinatario.nombre}</span></div>
               <div className="receipt-row"><span className="k">CBU destino</span><span className="v">{destinatario.cbu}</span></div>
               {destinatario.alias && (
@@ -466,7 +496,7 @@ export default function TransferenciasPage() {
             <p className="modal-sub" style={{ textAlign: 'center' }}>Comprobante de la operación</p>
 
             <div className="receipt">
-              <p className="receipt-amount">$ {fmt(comprobante.monto)}</p>
+              <p className="receipt-amount">{comprobante.simbolo} {fmt(comprobante.monto)}</p>
               <div className="receipt-row"><span className="k">N° operación</span><span className="v">{comprobante.id}</span></div>
               <div className="receipt-row"><span className="k">Fecha</span><span className="v">{fmtFecha(comprobante.fecha)}</span></div>
               <div className="receipt-row"><span className="k">Para</span><span className="v">{comprobante.destinatario.nombre}</span></div>

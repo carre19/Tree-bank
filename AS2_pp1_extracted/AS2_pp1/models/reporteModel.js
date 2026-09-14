@@ -16,6 +16,20 @@ const Reporte = {
         return rows[0];
     },
 
+    // Los reportes de una persona puntual (para que el propio usuario pueda
+    // ver despues lo que mando, ya que la pantalla de "Reportar un problema"
+    // solo mostraba un cartel de "gracias" y no quedaba forma de volver a leerlo)
+    getByPersona: async (id_persona) => {
+        const { rows } = await db.query(
+            `SELECT id, pagina, descripcion, estado, fecha
+             FROM reportes
+             WHERE id_persona = $1
+             ORDER BY fecha DESC`,
+            [id_persona]
+        );
+        return rows;
+    },
+
     // Todos los reportes, con los datos de quien lo hizo si estaba logueado
     // (LEFT JOIN: un reporte anonimo no tiene persona asociada)
     getAll: async () => {

@@ -58,6 +58,17 @@ exports.crearReporte = async (req, res) => {
     }
 };
 
+// GET /api/reportes/mios — el usuario logueado ve sus propios reportes
+// (los que mando anonimo, sin token, no quedan asociados y no aparecen aca)
+exports.misReportes = async (req, res) => {
+    try {
+        const reportes = await Reporte.getByPersona(req.usuario.id);
+        res.json(reportes);
+    } catch (error) {
+        res.status(500).json({ error: 'Error al obtener tus reportes', detalle: error.message });
+    }
+};
+
 // GET /api/admin/reportes (solo ADMIN)
 exports.listarReportes = async (req, res) => {
     try {

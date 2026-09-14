@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import AppLayout from '../components/AppLayout';
@@ -14,6 +14,28 @@ export default function ReportarProblemaPage() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
   const [enviado, setEnviado] = useState(false);
+
+  // Mis reportes: solo tiene sentido si esta logueado (los anonimos no quedan
+  // asociados a nadie, asi que no hay forma de que el usuario los vuelva a ver)
+  const [misReportes, setMisReportes] = useState([]);
+  const [cargandoMisReportes, setCargandoMisReportes] = useState(false);
+
+  const cargarMisReportes = useCallback(async () => {
+    if (!usuario) return;
+    setCargandoMisReportes(true);
+    try {
+      const res = await api.get('/reportes/mios');
+      setMisReportes(res.data);
+    } catch {
+      // silencioso: no tapar el formulario de reporte por un error al listar
+    } finally {
+      setCargandoMisReportes(false);
+    }
+  }, [usuario]);
+
+  useEffect(() => {
+    cargarMisReportes();
+  }, [cargarMisReportes]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,6 +56,7 @@ export default function ReportarProblemaPage() {
       });
       setEnviado(true);
       setDescripcion('');
+      cargarMisReportes();
     } catch (err) {
       setError(err.response?.data?.error || 'No se pudo enviar el reporte. Probá de nuevo en unos minutos.');
     } finally {
@@ -96,6 +119,48 @@ export default function ReportarProblemaPage() {
           </form>
         )}
       </div>
+
+      {usuario && (
+        <div className="anim-up-1">
+          <h3 className="section-title">Mis reportes</h3>
+
+          {cargandoMisReportes && (
+            <div className="loading-center">
+              <div className="spinner" />
+              Cargando…
+            </div>
+          )}
+
+          {!cargandoMisReportes && misReportes.length === 0 && (
+            <div className="empty">
+              <div className="empty-icon"><Icon name="megaphone" size={26} /></div>
+              <p>Todavía no reportaste nada</p>
+            </div>
+          )}
+
+          {misReportes.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {misReportes.map((r) => (
+                <div key={r.id} className="tx-item" style={{ flexWrap: 'wrap' }}>
+                  <div className={`tx-icon ${r.estado === 'ABIERTO' ? 'out' : 'in'}`}>
+                    <Icon name="megaphone" size={19} />
+                  </div>
+                  <div className="tx-info">
+                    <p className="tx-desc">{r.descripcion}</p>
+                    <p className="tx-date">
+                      {r.pagina ? `${r.pagina} · ` : ''}
+                      {new Date(r.fecha).toLocaleString('es-AR')}
+                    </p>
+                  </div>
+                  <span className={`tx-badge ${r.estado === 'ABIERTO' ? 'out' : 'in'}`}>
+                    {r.estado === 'ABIERTO' ? 'Abierto' : 'Resuelto'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </AppLayout>
   );
 }

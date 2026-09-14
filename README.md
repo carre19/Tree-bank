@@ -72,7 +72,10 @@ node scripts/admin.js password <dni> <nueva>     # define o resetea una contrase
 - Apertura de cuenta con CBU y alias asignados por el Banco Central
 - Login con DNI y contraseña (bcrypt + JWT)
 - Transferencias por CBU **o alias** con verificación de destinatario,
-  confirmación y comprobante imprimible — procesadas vía Banco Central
+  confirmación y comprobante imprimible — procesadas vía Banco Central. Quien ya abrió su
+  caja en dólares (desde Cambio) puede elegir transferir y recibir en ARS o en USD; el
+  backend rechaza cualquier intento de mover plata entre una caja en ARS y una en USD sin
+  pasar por Cambio, para que no funcione como un cambio de divisa gratuito
 - Lista de contactos con búsqueda y favoritos
 - Depósitos en efectivo
 - Historial de movimientos ("Movimientos") con:
@@ -120,11 +123,45 @@ logueado o no, por si el problema es justo no poder entrar.
 
 - `POST /api/reportes`: público, limitado a 8 pedidos por IP cada 15 minutos para frenar spam.
   Si el pedido trae un token válido, el reporte queda asociado a esa persona; si no, queda anónimo.
+- `GET /api/reportes/mios`: requiere token. El propio usuario ve los reportes que mandó estando
+  logueado (con su estado, ABIERTO o RESUELTO), directamente debajo del formulario en
+  "Reportar un problema" — antes de esto, una vez enviado el reporte no había forma de volver a
+  leerlo, solo el admin lo veía.
 - `GET /api/admin/reportes` y `PUT /api/admin/reportes/:id/estado`: solo ADMIN. Listan los
   reportes (más recientes primero) y permiten marcarlos como resueltos o reabrirlos.
 - Aviso opcional por webhook: si se completa `REPORTES_WEBHOOK_URL` en el `.env` (acepta una URL
   de Discord o de Slack), cada reporte nuevo manda un aviso ahí al toque. Sin configurar, los
   reportes se siguen guardando igual — alcanza con revisarlos en el panel de administrador.
+
+## Préstamos
+
+Desde `/prestamos`, un cliente simula y pide un préstamo en ARS a 3, 6, 12 o 24 cuotas
+(`prestamoModel.TASAS_POR_CUOTAS`, la tasa total sube con el plazo), acreditado de inmediato en
+su cuenta si se aprueba.
+
+Cuánto se le puede prestar a alguien **depende de lo que esa persona movió realmente por el
+banco**, no de un monto fijo igual para todos — sin este límite, una cuenta con $2 podía pedir
+un préstamo de mil millones con solo pasar el chequeo de la Central de Deudores:
+
+- `Persona.getTotalIngresadoReal(id_cuenta)` suma únicamente depósitos y transferencias
+  recibidas (`DEPOSITO`, `TRANSFERENCIA_INGRESO`) — a propósito no cuenta plata que entró por
+  otro préstamo o por una caución, para que no se pueda "autoabastecer" el límite.
+- El límite total prestable es `PISO_PRESTAMO (5000) + capacidad × MULTIPLO_CAPACIDAD (3)`, y se
+  compara contra la deuda activa de otros préstamos más el nuevo que se está pidiendo
+  (`Prestamo.getDeudaActivaTotal`). Si se pasa, el backend rechaza con 400 y devuelve cuánto sí
+  podría pedir.
+- Pagar una cuota (`POST /api/prestamos/:id/pagar-cuota`) también valida que el saldo disponible
+  de la cuenta alcance, y todo el cobro (descuento de saldo + actualización del préstamo, y su
+  cierre si era la última cuota) va en una única transacción de base de datos.
+
+## Integridad de las operaciones con dinero
+
+Todas las operaciones que mueven saldo (transferencias, depósitos, préstamos, tarjetas, seguros,
+cauciones, inversiones, cambio de divisas, pago de servicios y recargas) están envueltas en una
+transacción de PostgreSQL (`BEGIN` / `COMMIT` / `ROLLBACK`): si un paso intermedio falla, no queda
+plata descontada ni un movimiento a mitad de registrar. Además, el descuento de saldo es una
+operación atómica en una sola sentencia SQL (`UPDATE ... WHERE saldo >= $1`), así dos pedidos
+simultáneos sobre la misma cuenta no pueden dejarla en negativo por una condición de carrera.
 
 ## Inversiones
 
