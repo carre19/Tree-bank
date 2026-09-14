@@ -8,6 +8,7 @@
 
 const Servicio = require('../models/servicioModel');
 const Persona = require('../models/personaModel');
+const db = require('../config/db');
 const { validarMonto, aMonto } = require('../utils/validaciones');
 
 // POST /api/servicios/consultar-factura — Simula la factura de un servicio
@@ -59,13 +60,23 @@ exports.pagarServicio = async (req, res) => {
 
         const { empresa, label } = Servicio.TIPOS_SERVICIO[tipo_servicio];
 
-        await Persona.descontarSaldo(cuenta.cbu, monto);
-        await Persona.registrarMovimiento({
-            id_cuenta: cuenta.id_cuenta,
-            tipo_movimiento: 'SERVICIO_PAGO',
-            monto,
-            descripcion: `Pago de ${label.toLowerCase()}: ${empresa} · Cliente ${numero_cliente}`
-        });
+        const client = await db.connect();
+        try {
+            await client.query('BEGIN');
+            await Persona.descontarSaldo(cuenta.cbu, monto, client);
+            await Persona.registrarMovimiento({
+                id_cuenta: cuenta.id_cuenta,
+                tipo_movimiento: 'SERVICIO_PAGO',
+                monto,
+                descripcion: `Pago de ${label.toLowerCase()}: ${empresa} · Cliente ${numero_cliente}`
+            }, client);
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
 
         res.status(201).json({ mensaje: `Pago de ${label.toLowerCase()} realizado correctamente` });
     } catch (error) {

@@ -21,12 +21,16 @@ const Seguro = {
 
     TIPOS_SEGURO,
 
-    // Crea el producto + la poliza en una sola transaccion
-    contratarPoliza: async ({ id_persona, tipo_seguro }) => {
+    // Crea el producto + la poliza. Si se pasa un client externo (el caller ya
+    // abrio su propia transaccion, para que el alta y el cobro de la primera
+    // prima queden en un solo commit), lo usa tal cual sin manejar BEGIN/COMMIT
+    // ni release — eso queda del lado del caller.
+    contratarPoliza: async ({ id_persona, tipo_seguro }, clienteExterno = null) => {
         const { cobertura, prima_mensual } = TIPOS_SEGURO[tipo_seguro];
-        const client = await db.connect();
+        const client = clienteExterno || await db.connect();
+        const propiaTransaccion = !clienteExterno;
         try {
-            await client.query('BEGIN');
+            if (propiaTransaccion) await client.query('BEGIN');
 
             const resProducto = await client.query(
                 `INSERT INTO productos (id_persona, id_tipo_producto, id_estado_producto)
@@ -42,13 +46,13 @@ const Seguro = {
                 [id_producto, tipo_seguro, cobertura, prima_mensual]
             );
 
-            await client.query('COMMIT');
+            if (propiaTransaccion) await client.query('COMMIT');
             return { id_producto, ...resPoliza.rows[0] };
         } catch (e) {
-            await client.query('ROLLBACK');
+            if (propiaTransaccion) await client.query('ROLLBACK');
             throw e;
         } finally {
-            client.release();
+            if (propiaTransaccion) client.release();
         }
     },
 
@@ -78,8 +82,8 @@ const Seguro = {
         return rows[0];
     },
 
-    pagarPrima: async (id_poliza) => {
-        const { rows } = await db.query(
+    pagarPrima: async (id_poliza, client = db) => {
+        const { rows } = await client.query(
             `UPDATE polizas SET fecha_proximo_pago = fecha_proximo_pago + INTERVAL '1 month'
              WHERE id_poliza = $1 RETURNING *`,
             [id_poliza]

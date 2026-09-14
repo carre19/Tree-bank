@@ -7,10 +7,19 @@ const request = require('supertest');
 
 jest.mock('../models/seguroModel');
 jest.mock('../models/personaModel');
+// contratarPoliza y pagarPrima ahora envuelven sus pasos en una transaccion
+// (db.connect() directo desde el controller), asi que sin este mock el test
+// abriria una conexion real a Postgres.
+jest.mock('../config/db', () => {
+    const mockClient = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 1 }), release: jest.fn() };
+    return { connect: jest.fn().mockResolvedValue(mockClient), query: jest.fn(), __mockClient: mockClient };
+});
 
 const Seguro = require('../models/seguroModel');
 const Persona = require('../models/personaModel');
+const db = require('../config/db');
 const seguroController = require('../controllers/seguroController');
+const mockClient = db.__mockClient;
 
 Seguro.TIPOS_SEGURO = {
     VIDA: { cobertura: 5000000, prima_mensual: 2500 },
@@ -51,7 +60,8 @@ describe('POST /seguros — contratarPoliza', () => {
 
         const res = await request(app).post('/seguros').send({ tipo_seguro: 'hogar' });
         expect(res.status).toBe(201);
-        expect(Persona.descontarSaldo).toHaveBeenCalledWith('CBU_ARS', 1800);
+        // Ahora va dentro de una transaccion: recibe el client como tercer argumento
+        expect(Persona.descontarSaldo).toHaveBeenCalledWith('CBU_ARS', 1800, mockClient);
     });
 });
 
@@ -86,7 +96,8 @@ describe('POST /seguros/:id/pagar-prima — pagarPrima', () => {
 
         const res = await request(app).post('/seguros/1/pagar-prima');
         expect(res.status).toBe(200);
-        expect(Persona.descontarSaldo).toHaveBeenCalledWith('CBU_ARS', 900);
+        // Ahora va dentro de una transaccion: recibe el client como tercer argumento
+        expect(Persona.descontarSaldo).toHaveBeenCalledWith('CBU_ARS', 900, mockClient);
     });
 });
 

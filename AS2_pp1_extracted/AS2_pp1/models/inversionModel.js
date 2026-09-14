@@ -14,8 +14,8 @@ const Inversion = {
         return rows;
     },
 
-    getTenencia: async (id_persona, mercado, simbolo) => {
-        const { rows } = await db.query(
+    getTenencia: async (id_persona, mercado, simbolo, client = db) => {
+        const { rows } = await client.query(
             `SELECT * FROM tenencias WHERE id_persona = $1 AND mercado = $2 AND simbolo = $3`,
             [id_persona, mercado, simbolo]
         );
@@ -24,11 +24,11 @@ const Inversion = {
 
     // Suma cantidad a la tenencia (o la crea) y recalcula el precio promedio
     // ponderado: promedio = (cantidad_vieja*pp_viejo + cantidad_nueva*precio) / cantidad_total
-    comprar: async ({ id_persona, mercado, simbolo, cantidad, precio, moneda }) => {
-        const existente = await Inversion.getTenencia(id_persona, mercado, simbolo);
+    comprar: async ({ id_persona, mercado, simbolo, cantidad, precio, moneda }, client = db) => {
+        const existente = await Inversion.getTenencia(id_persona, mercado, simbolo, client);
 
         if (!existente) {
-            const { rows } = await db.query(
+            const { rows } = await client.query(
                 `INSERT INTO tenencias (id_persona, mercado, simbolo, cantidad, precio_promedio, moneda)
                  VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
                 [id_persona, mercado, simbolo, cantidad, precio, moneda]
@@ -39,7 +39,7 @@ const Inversion = {
         const cantidadTotal = Number(existente.cantidad) + cantidad;
         const promedioNuevo = (Number(existente.cantidad) * Number(existente.precio_promedio) + cantidad * precio) / cantidadTotal;
 
-        const { rows } = await db.query(
+        const { rows } = await client.query(
             `UPDATE tenencias SET cantidad = $1, precio_promedio = $2, fecha_actualizacion = NOW()
              WHERE id_tenencia = $3 RETURNING *`,
             [cantidadTotal, Number(promedioNuevo.toFixed(4)), existente.id_tenencia]
@@ -48,9 +48,12 @@ const Inversion = {
     },
 
     // Resta cantidad de la tenencia (el precio promedio no cambia al vender,
-    // solo al comprar mas)
-    vender: async ({ id_persona, mercado, simbolo, cantidad }) => {
-        const { rows } = await db.query(
+    // solo al comprar mas). El WHERE cantidad >= $1 la deja en null (ninguna fila
+    // afectada) si ya no hay suficiente — el caller DEBE chequear eso antes de
+    // acreditar plata, si no dos ventas concurrentes de la misma tenencia podrian
+    // cobrar dos veces por acciones que solo se vendieron una vez.
+    vender: async ({ id_persona, mercado, simbolo, cantidad }, client = db) => {
+        const { rows } = await client.query(
             `UPDATE tenencias SET cantidad = cantidad - $1, fecha_actualizacion = NOW()
              WHERE id_persona = $2 AND mercado = $3 AND simbolo = $4 AND cantidad >= $1
              RETURNING *`,

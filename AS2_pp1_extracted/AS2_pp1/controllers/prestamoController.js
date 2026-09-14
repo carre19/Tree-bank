@@ -8,10 +8,22 @@
 const centralBank = require('../services/centralBankClient');
 const Prestamo = require('../models/prestamoModel');
 const Persona = require('../models/personaModel');
+const db = require('../config/db');
 const { validarMonto, aMonto } = require('../utils/validaciones');
 
 const CUOTAS_VALIDAS = Object.keys(Prestamo.TASAS_POR_CUOTAS).map(Number); // [3, 6, 12, 24]
 const SITUACION_LIMITE = 4; // 4 (riesgo alto) o 5 (irrecuperable) -> se rechaza
+
+// Cuanto se le puede prestar a alguien depende de lo que esa persona
+// efectivamente movió por el banco, no de un monto fijo igual para todos:
+// PISO_PRESTAMO es lo minimo que se le presta a cualquiera (incluso a una
+// cuenta recien abierta, sin ningun deposito todavia) y MULTIPLO_CAPACIDAD
+// multiplica lo que depositó o recibió históricamente (ver
+// Persona.getTotalIngresadoReal). Sin este limite, una cuenta con $2 podia
+// pedir un prestamo de mil millones con solo pasar el chequeo de la Central
+// de Deudores.
+const PISO_PRESTAMO = 5000;
+const MULTIPLO_CAPACIDAD = 3;
 
 // POST /api/prestamos — Solicita un prestamo (requiere estar logueado)
 exports.solicitarPrestamo = async (req, res) => {
@@ -29,6 +41,28 @@ exports.solicitarPrestamo = async (req, res) => {
         const cuenta = await Persona.getCuentaArsPorPersona(req.usuario.id);
         if (!cuenta) {
             return res.status(404).json({ error: 'No se encontro una cuenta en ARS para acreditar el prestamo' });
+        }
+
+        const { tasa, monto_cuota, saldo_pendiente } = Prestamo.simular(monto, cuotas);
+
+        // El prestamo que se esta pidiendo, SUMADO a lo que ya debe de otros prestamos
+        // activos, no puede superar lo que la cuenta puede respaldar segun lo que
+        // efectivamente ingreso (ver PISO_PRESTAMO/MULTIPLO_CAPACIDAD mas arriba).
+        const deudaNueva = saldo_pendiente;
+        const [capacidad, deudaActiva] = await Promise.all([
+            Persona.getTotalIngresadoReal(cuenta.id_cuenta),
+            Prestamo.getDeudaActivaTotal(req.usuario.id),
+        ]);
+        const limitePrestable = PISO_PRESTAMO + capacidad * MULTIPLO_CAPACIDAD;
+        if (deudaActiva + deudaNueva > limitePrestable) {
+            const disponibleParaPedir = Math.max(0, limitePrestable - deudaActiva);
+            return res.status(400).json({
+                error: `Este prestamo (con intereses, $ ${deudaNueva.toFixed(2)}) supera lo que se te puede prestar según tu movimiento real en el banco. ` +
+                    `Podés pedir hasta $ ${disponibleParaPedir.toFixed(2)} más (límite total: $ ${limitePrestable.toFixed(2)}, calculado sobre lo que depositaste o recibiste).`,
+                limite_prestable: limitePrestable,
+                deuda_activa: deudaActiva,
+                disponible_para_pedir: disponibleParaPedir,
+            });
         }
 
         // Consultamos la Central de Deudores ANTES de aprobar. Un 404 significa
@@ -52,26 +86,40 @@ exports.solicitarPrestamo = async (req, res) => {
             });
         }
 
-        const { tasa, monto_cuota, saldo_pendiente } = Prestamo.simular(monto, cuotas);
+        // Crear el prestamo y acreditar el monto van en UNA transaccion: sin esto,
+        // si la acreditacion fallaba despues de que el prestamo ya quedara confirmado,
+        // el cliente terminaba debiendo una plata que nunca llego a cobrar.
+        const client = await db.connect();
+        let prestamo;
+        try {
+            await client.query('BEGIN');
 
-        const prestamo = await Prestamo.crearPrestamo({
-            id_persona: req.usuario.id,
-            monto,
-            tasa_interes: tasa,
-            cuotas_totales: cuotas,
-            monto_cuota,
-            saldo_pendiente,
-            situacion_al_otorgar: situacion
-        });
+            prestamo = await Prestamo.crearPrestamo({
+                id_persona: req.usuario.id,
+                monto,
+                tasa_interes: tasa,
+                cuotas_totales: cuotas,
+                monto_cuota,
+                saldo_pendiente,
+                situacion_al_otorgar: situacion
+            }, client);
 
-        // El dinero se acredita de inmediato en la cuenta en ARS del solicitante
-        await Persona.acreditarSaldo(cuenta.cbu, monto);
-        await Persona.registrarMovimiento({
-            id_cuenta: cuenta.id_cuenta,
-            tipo_movimiento: 'PRESTAMO_OTORGADO',
-            monto,
-            descripcion: `Prestamo otorgado en ${cuotas} cuotas`
-        });
+            // El dinero se acredita de inmediato en la cuenta en ARS del solicitante
+            await Persona.acreditarSaldo(cuenta.cbu, monto, client);
+            await Persona.registrarMovimiento({
+                id_cuenta: cuenta.id_cuenta,
+                tipo_movimiento: 'PRESTAMO_OTORGADO',
+                monto,
+                descripcion: `Prestamo otorgado en ${cuotas} cuotas`
+            }, client);
+
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
 
         res.status(201).json({
             mensaje: 'Prestamo aprobado y acreditado en tu cuenta',
@@ -118,22 +166,39 @@ exports.pagarCuota = async (req, res) => {
             return res.status(400).json({ error: `Saldo disponible insuficiente para pagar la cuota (disponible: $ ${disponible.toFixed(2)})` });
         }
 
-        await Persona.descontarSaldo(cuenta.cbu, prestamo.monto_cuota);
-        await Persona.registrarMovimiento({
-            id_cuenta: cuenta.id_cuenta,
-            tipo_movimiento: 'PRESTAMO_CUOTA',
-            monto: prestamo.monto_cuota,
-            descripcion: `Cuota ${prestamo.cuotas_pagadas + 1}/${prestamo.cuotas_totales} del prestamo`
-        });
+        // Cobrar la cuota y actualizar el prestamo (y cerrarlo si era la ultima) van en
+        // una sola transaccion: sin esto, si el UPDATE del prestamo fallaba despues de
+        // haber descontado el saldo, se le cobraba la cuota al cliente sin que quedara
+        // reflejada en cuotas_pagadas/saldo_pendiente.
+        const client = await db.connect();
+        let actualizado;
+        try {
+            await client.query('BEGIN');
 
-        const actualizado = await Prestamo.registrarPagoCuota(id, prestamo.monto_cuota);
+            await Persona.descontarSaldo(cuenta.cbu, prestamo.monto_cuota, client);
+            await Persona.registrarMovimiento({
+                id_cuenta: cuenta.id_cuenta,
+                tipo_movimiento: 'PRESTAMO_CUOTA',
+                monto: prestamo.monto_cuota,
+                descripcion: `Cuota ${prestamo.cuotas_pagadas + 1}/${prestamo.cuotas_totales} del prestamo`
+            }, client);
 
-        // Si esta era la ultima cuota, el prestamo pasa a CERRADO
-        if (actualizado.cuotas_pagadas >= actualizado.cuotas_totales) {
-            await Persona.cambiarEstadoCuenta(prestamo.id_producto, 'CERRADO');
-            actualizado.estado = 'CERRADO';
-        } else {
-            actualizado.estado = prestamo.estado;
+            actualizado = await Prestamo.registrarPagoCuota(id, prestamo.monto_cuota, client);
+
+            // Si esta era la ultima cuota, el prestamo pasa a CERRADO
+            if (actualizado.cuotas_pagadas >= actualizado.cuotas_totales) {
+                await Persona.cambiarEstadoCuenta(prestamo.id_producto, 'CERRADO', client);
+                actualizado.estado = 'CERRADO';
+            } else {
+                actualizado.estado = prestamo.estado;
+            }
+
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
         }
 
         res.json({ mensaje: 'Cuota pagada correctamente', prestamo: actualizado });

@@ -109,26 +109,36 @@ const Persona = {
     }
   },
 
-  // Resta monto del saldo de una cuenta (se usa al hacer una transferencia que sale)
-  descontarSaldo: async (cbu, monto) => {
-    await db.query(
-      'UPDATE cuentas_bancarias SET saldo = saldo - $1 WHERE cbu = $2',
+  // Resta monto del saldo de una cuenta (se usa al hacer una transferencia que sale).
+  // El WHERE exige saldo >= $1: sin esta condicion, dos pedidos concurrentes que lean
+  // "hay saldo suficiente" antes de que cualquiera escriba podian descontar los dos y
+  // dejar el saldo negativo (nadie volvia a chequear disponible entre leer y escribir).
+  // Si el UPDATE no afecta ninguna fila, ya sea porque el saldo no alcanza o porque el
+  // CBU no existe, se tira un error en vez de seguir como si hubiera descontado.
+  // "client" es opcional: si el caller esta dentro de una transaccion (ver mas abajo,
+  // p. ej. realizarTransferencia) pasa su propio client; si no, usa el pool normal.
+  descontarSaldo: async (cbu, monto, client = db) => {
+    const { rowCount } = await client.query(
+      'UPDATE cuentas_bancarias SET saldo = saldo - $1 WHERE cbu = $2 AND saldo >= $1',
       [monto, cbu]
     );
+    if (rowCount === 0) {
+      throw new Error('Saldo insuficiente para completar la operacion');
+    }
   },
 
   // Suma monto al saldo de una cuenta (se usa al recibir transferencia o depósito)
-  acreditarSaldo: async (cbu, monto) => {
-    await db.query(
+  acreditarSaldo: async (cbu, monto, client = db) => {
+    await client.query(
       'UPDATE cuentas_bancarias SET saldo = saldo + $1 WHERE cbu = $2',
       [monto, cbu]
     );
   },
 
   // Hace descontar y acreditar en una sola función (transferencia interna entre dos cuentas del mismo banco)
-  transferirSaldo: async (origen, destino, monto) => {
-    await db.query('UPDATE cuentas_bancarias SET saldo = saldo - $1 WHERE cbu = $2', [monto, origen]);
-    await db.query('UPDATE cuentas_bancarias SET saldo = saldo + $1 WHERE cbu = $2', [monto, destino]);
+  transferirSaldo: async (origen, destino, monto, client = db) => {
+    await Persona.descontarSaldo(origen, monto, client);
+    await Persona.acreditarSaldo(destino, monto, client);
   },
 
   // Guarda un movimiento en la tabla movimientos (historial de transacciones)
@@ -136,9 +146,9 @@ const Persona = {
   // cbu_contraparte/nombre_contraparte son opcionales: identifican a quien envio o recibio
   // la plata del otro lado de una transferencia, y son la base de la lista de "Contactos"
   // (a proposito NO se llenan en depositos: no tienen contraparte real).
-  registrarMovimiento: async (datos) => {
+  registrarMovimiento: async (datos, client = db) => {
     const { id_cuenta, tipo_movimiento, monto, descripcion, cbu_contraparte, nombre_contraparte } = datos;
-    await db.query(
+    await client.query(
       `INSERT INTO movimientos (id_cuenta, tipo_movimiento, monto, descripcion, cbu_contraparte, nombre_contraparte, fecha)
        VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
       [id_cuenta, tipo_movimiento, monto, descripcion, cbu_contraparte || null, nombre_contraparte || null]
@@ -309,6 +319,22 @@ const Persona = {
     return rows;
   },
 
+  // Suma de todo el dinero "real" que entró históricamente a una cuenta: depósitos
+  // en efectivo y transferencias recibidas de otras personas. A propósito NO cuenta
+  // PRESTAMO_OTORGADO ni CAUCION_LIQUIDADA ni nada que el banco le acreditó a partir
+  // de una operación interna — si contara, alguien podría pedir un préstamo chico,
+  // usar ese ingreso "artificial" para inflar su capacidad, y pedir uno cada vez más
+  // grande sin haber puesto ni recibido un peso de afuera. Se usa para calcular
+  // cuánto se le puede prestar (ver prestamoController.js).
+  getTotalIngresadoReal: async (id_cuenta) => {
+    const { rows } = await db.query(
+      `SELECT COALESCE(SUM(monto), 0) AS total FROM movimientos
+       WHERE id_cuenta = $1 AND tipo_movimiento IN ('DEPOSITO', 'TRANSFERENCIA_INGRESO')`,
+      [id_cuenta]
+    );
+    return Number(rows[0].total);
+  },
+
   // Devuelve el historial de movimientos de una cuenta, del más reciente al más antiguo
   getMovimientos: async (id_cuenta) => {
     const { rows } = await db.query(
@@ -338,8 +364,8 @@ const Persona = {
 
   // Cambia el estado de un producto (cuenta): ACTIVO, BLOQUEADO o CERRADO
   // Usado por el administrador para bloquear/reactivar/cerrar una cuenta
-  cambiarEstadoCuenta: async (id_producto, nombreEstado) => {
-    const { rows } = await db.query(
+  cambiarEstadoCuenta: async (id_producto, nombreEstado, client = db) => {
+    const { rows } = await client.query(
       `UPDATE productos SET id_estado_producto = (
          SELECT id_estado_producto FROM estados_producto WHERE nombre = $1
        ) WHERE id_producto = $2 RETURNING id_producto`,

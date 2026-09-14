@@ -202,29 +202,45 @@ exports.realizarTransferencia = async (req, res) => {
             // lo guardamos como "contraparte" del movimiento (base de la lista de Contactos)
             const { nombreOrigen, nombreDestino } = respuestaCentral.data || {};
 
-            // Transferencia APROBADA: descontar saldo y registrar movimientos
-            await Persona.descontarSaldo(cbu_origen, importe);
-            await Persona.registrarMovimiento({
-                id_cuenta: cuentaOrigen.id_cuenta,
-                tipo_movimiento: 'TRANSFERENCIA_EGRESO',
-                monto: importe,
-                descripcion: descripcion || 'Transferencia enviada',
-                cbu_contraparte: cbu_destino,
-                nombre_contraparte: nombreDestino || null
-            });
+            // El Banco Central ya aprobo la transferencia: a esta altura la plata "ya salio"
+            // de este banco en los libros del sistema. Los pasos locales (descontar, acreditar,
+            // registrar) van todos en UNA transaccion: si cualquiera falla a mitad de camino
+            // (ej. se cae la conexion despues de descontar pero antes de registrar el movimiento),
+            // se revierte todo en vez de dejar el saldo descontado sin rastro en el historial.
+            const client = await db.connect();
+            try {
+                await client.query('BEGIN');
 
-            // Si el destino tambien es de este banco, acreditar localmente
-            const cuentaDestino = await Persona.getByCbu(cbu_destino);
-            if (cuentaDestino) {
-                await Persona.acreditarSaldo(cbu_destino, importe);
+                await Persona.descontarSaldo(cbu_origen, importe, client);
                 await Persona.registrarMovimiento({
-                    id_cuenta: cuentaDestino.id_cuenta,
-                    tipo_movimiento: 'TRANSFERENCIA_INGRESO',
+                    id_cuenta: cuentaOrigen.id_cuenta,
+                    tipo_movimiento: 'TRANSFERENCIA_EGRESO',
                     monto: importe,
-                    descripcion: descripcion || 'Transferencia recibida',
-                    cbu_contraparte: cbu_origen,
-                    nombre_contraparte: nombreOrigen || null
-                });
+                    descripcion: descripcion || 'Transferencia enviada',
+                    cbu_contraparte: cbu_destino,
+                    nombre_contraparte: nombreDestino || null
+                }, client);
+
+                // Si el destino tambien es de este banco, acreditar localmente
+                const cuentaDestino = await Persona.getByCbu(cbu_destino);
+                if (cuentaDestino) {
+                    await Persona.acreditarSaldo(cbu_destino, importe, client);
+                    await Persona.registrarMovimiento({
+                        id_cuenta: cuentaDestino.id_cuenta,
+                        tipo_movimiento: 'TRANSFERENCIA_INGRESO',
+                        monto: importe,
+                        descripcion: descripcion || 'Transferencia recibida',
+                        cbu_contraparte: cbu_origen,
+                        nombre_contraparte: nombreOrigen || null
+                    }, client);
+                }
+
+                await client.query('COMMIT');
+            } catch (e) {
+                await client.query('ROLLBACK');
+                throw e;
+            } finally {
+                client.release();
             }
 
             return res.status(201).json({
@@ -287,13 +303,24 @@ exports.realizarDeposito = async (req, res) => {
         }
 
         const montoNum = aMonto(monto);
-        await Persona.acreditarSaldo(cbu, montoNum);
-        await Persona.registrarMovimiento({
-            id_cuenta: cuenta.id_cuenta,
-            tipo_movimiento: 'DEPOSITO',
-            monto: montoNum,
-            descripcion: descripcion || 'Deposito en efectivo'
-        });
+
+        const client = await db.connect();
+        try {
+            await client.query('BEGIN');
+            await Persona.acreditarSaldo(cbu, montoNum, client);
+            await Persona.registrarMovimiento({
+                id_cuenta: cuenta.id_cuenta,
+                tipo_movimiento: 'DEPOSITO',
+                monto: montoNum,
+                descripcion: descripcion || 'Deposito en efectivo'
+            }, client);
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
 
         const saldoNuevo = parseFloat(cuenta.saldo) + montoNum;
 

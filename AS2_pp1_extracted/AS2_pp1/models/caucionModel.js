@@ -71,8 +71,8 @@ const Caucion = {
         return { tasa_anual, interes, monto_a_cobrar, mercado_abierto: abierto };
     },
 
-    crear: async ({ id_persona, id_cuenta, monto, plazo_dias, tasa_anual, monto_a_cobrar }) => {
-        const { rows } = await db.query(
+    crear: async ({ id_persona, id_cuenta, monto, plazo_dias, tasa_anual, monto_a_cobrar }, client = db) => {
+        const { rows } = await client.query(
             `INSERT INTO cauciones (id_persona, id_cuenta, monto, plazo_dias, tasa_anual, monto_a_cobrar, fecha_vencimiento)
              VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE + make_interval(days => $4))
              RETURNING *`,

@@ -36,6 +36,13 @@ const Tarjeta = {
 
     // Crea el producto + la tarjeta en una sola transaccion. Reintenta si el
     // numero de tarjeta generado ya existe (colision extremadamente rara).
+    //
+    // Antes de insertar, toma un bloqueo consultivo (pg_advisory_xact_lock) sobre
+    // el id_persona y recien ahi re-chequea "no tiene activa de esta marca" DENTRO
+    // de la misma transaccion. Sin este lock, dos pedidos de tarjeta casi
+    // simultaneos de la MISMA persona podian pasar los dos el chequeo (hecho en el
+    // controller, antes de cualquier INSERT) y terminar con dos tarjetas activas
+    // de la misma marca — el lock serializa ese par chequeo+insert por persona.
     crearTarjeta: async ({ id_persona, marca, situacion_al_otorgar }) => {
         const limite_compra = LIMITE_POR_SITUACION[situacion_al_otorgar] || LIMITE_POR_SITUACION[1];
 
@@ -43,6 +50,21 @@ const Tarjeta = {
             const client = await db.connect();
             try {
                 await client.query('BEGIN');
+                await client.query('SELECT pg_advisory_xact_lock($1)', [id_persona]);
+
+                const yaTiene = await client.query(
+                    `SELECT 1 FROM tarjetas_credito t
+                     JOIN productos p ON t.id_producto = p.id_producto
+                     JOIN estados_producto ep ON p.id_estado_producto = ep.id_estado_producto
+                     WHERE p.id_persona = $1 AND t.marca = $2 AND ep.nombre = 'ACTIVO'
+                     LIMIT 1`,
+                    [id_persona, marca]
+                );
+                if (yaTiene.rows.length > 0) {
+                    const error = new Error(`Ya tenes una tarjeta ${marca} activa. No podes tener mas de una del mismo tipo.`);
+                    error.codigo = 'TARJETA_DUPLICADA';
+                    throw error;
+                }
 
                 const resProducto = await client.query(
                     `INSERT INTO productos (id_persona, id_tipo_producto, id_estado_producto)
@@ -62,6 +84,7 @@ const Tarjeta = {
                 return { id_producto, ...resTarjeta.rows[0] };
             } catch (e) {
                 await client.query('ROLLBACK');
+                if (e.codigo === 'TARJETA_DUPLICADA') throw e;
                 const esColisionNumero = e.code === '23505' && e.constraint === 'tarjetas_credito_numero_tarjeta_key';
                 if (!esColisionNumero) throw e;
             } finally {
@@ -126,8 +149,8 @@ const Tarjeta = {
         return rows[0];
     },
 
-    registrarPagoResumen: async (id_tarjeta, monto) => {
-        const { rows } = await db.query(
+    registrarPagoResumen: async (id_tarjeta, monto, client = db) => {
+        const { rows } = await client.query(
             `UPDATE tarjetas_credito
              SET saldo_consumido = GREATEST(saldo_consumido - $2, 0)
              WHERE id_tarjeta = $1
@@ -140,8 +163,8 @@ const Tarjeta = {
     // Movimiento de tarjeta: una compra no toca ninguna cuenta (id_cuenta null);
     // un pago de resumen sí, y se guarda en el mismo movimiento (id_cuenta + id_tarjeta)
     // para poder ver el pago tanto en el historial de la cuenta como en el de la tarjeta.
-    registrarMovimiento: async ({ id_tarjeta, id_cuenta, tipo_movimiento, monto, descripcion }) => {
-        await db.query(
+    registrarMovimiento: async ({ id_tarjeta, id_cuenta, tipo_movimiento, monto, descripcion }, client = db) => {
+        await client.query(
             `INSERT INTO movimientos (id_cuenta, id_tarjeta, tipo_movimiento, monto, descripcion, fecha)
              VALUES ($1, $2, $3, $4, $5, NOW())`,
             [id_cuenta || null, id_tarjeta, tipo_movimiento, monto, descripcion]

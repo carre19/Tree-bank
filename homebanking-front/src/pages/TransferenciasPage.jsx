@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import AppLayout from '../components/AppLayout';
@@ -52,6 +52,13 @@ export default function TransferenciasPage() {
   const [comprobante, setComprobante]   = useState(null);
   const [error, setError]               = useState('');
   const [enviando, setEnviando]         = useState(false);
+
+  // Guarda siempre el ultimo valor de "destino" para poder comparar contra el
+  // que tenia el campo cuando se disparo una verificacion async: si el usuario
+  // edita el CBU/alias mientras la respuesta todavia esta en vuelo, esa
+  // respuesta queda obsoleta y no debe pisar el destinatario ya verificado.
+  const destinoRef = useRef(destino);
+  useEffect(() => { destinoRef.current = destino; }, [destino]);
 
   // ── Cargar cuenta propia + contactos ──
   // Los "contactos" son solo la gente con la que ya hiciste una transferencia
@@ -137,6 +144,13 @@ export default function TransferenciasPage() {
         ? `/personas/${entrada}/buscar`
         : `/personas/alias/${encodeURIComponent(entrada)}`;
       const res = await api.get(ruta);
+
+      // Si el usuario ya cambió el campo mientras esta respuesta estaba en
+      // vuelo, quedó obsoleta: no hay que completar el destinatario con datos
+      // de un CBU/alias distinto al que está escrito ahora (podría terminar
+      // confirmándose una transferencia a la cuenta vieja sin que se note).
+      if (destinoRef.current.trim() !== entrada) return null;
+
       const dest = parseDestinatario(res.data, entrada);
       if (!dest.cbu) {
         setError('Se encontró el destinatario pero no su CBU. Probá con el CBU directamente.');
@@ -145,6 +159,7 @@ export default function TransferenciasPage() {
       setDestinatario(dest);
       return dest;
     } catch (err) {
+      if (destinoRef.current.trim() !== entrada) return null;
       setError(err.response?.data?.error || 'No se encontró ese CBU/alias');
       return null;
     } finally {
@@ -182,7 +197,7 @@ export default function TransferenciasPage() {
         descripcion,
         cbuOrigen,
       });
-      setSaldoActual(prev => (Number(prev) - Number(monto)).toFixed(2));
+      setSaldoActual(prev => Number(prev) - Number(monto));
       setConfirmando(false);
       setMonto(''); setDestino(''); setDescripcion(''); setDestinatario(null);
     } catch (err) {
@@ -326,6 +341,7 @@ export default function TransferenciasPage() {
                     placeholder="22 dígitos o alias (ej: maria.garcia.tb)"
                     value={destino}
                     onChange={(e) => handleDestinoChange(e.target.value)}
+                    disabled={buscando}
                     required
                     style={{ flex: 1 }}
                   />

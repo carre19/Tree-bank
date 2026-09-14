@@ -7,6 +7,7 @@
 
 const Recarga = require('../models/recargaModel');
 const Persona = require('../models/personaModel');
+const db = require('../config/db');
 const { validarMonto, aMonto } = require('../utils/validaciones');
 
 // Número de celular argentino sin el 0 ni el 15 (ej: 1123456789): 10 dígitos
@@ -49,13 +50,23 @@ exports.recargar = async (req, res) => {
 
         const { empresa } = Recarga.OPERADORES[operador];
 
-        await Persona.descontarSaldo(cuenta.cbu, monto);
-        await Persona.registrarMovimiento({
-            id_cuenta: cuenta.id_cuenta,
-            tipo_movimiento: 'RECARGA_CELULAR',
-            monto,
-            descripcion: `Recarga ${empresa} · ${numero_celular}`,
-        });
+        const client = await db.connect();
+        try {
+            await client.query('BEGIN');
+            await Persona.descontarSaldo(cuenta.cbu, monto, client);
+            await Persona.registrarMovimiento({
+                id_cuenta: cuenta.id_cuenta,
+                tipo_movimiento: 'RECARGA_CELULAR',
+                monto,
+                descripcion: `Recarga ${empresa} · ${numero_celular}`,
+            }, client);
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
 
         res.status(201).json({ mensaje: `Recarga de $ ${monto} a ${empresa} realizada correctamente` });
     } catch (error) {

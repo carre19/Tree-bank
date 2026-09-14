@@ -82,8 +82,21 @@ export default function ReservasPage() {
   };
 
   const handleLiberar = async (reserva) => {
-    const monto = Number(montoOperacion[reserva.id_reserva]) || Number(reserva.monto);
+    // Campo vacío -> se libera la reserva completa (comportamiento por defecto).
+    // Un valor explícito -> se usa tal cual. Antes esto se resolvía con
+    // Number(valor) || Number(reserva.monto), que trataba "0" escrito a
+    // propósito como si el campo estuviera vacío y liberaba el monto
+    // completo — justo lo contrario de lo que alguien que tipeó 0 esperaría.
+    const valorIngresado = montoOperacion[reserva.id_reserva];
+    const monto = (valorIngresado === undefined || valorIngresado === '')
+      ? Number(reserva.monto)
+      : Number(valorIngresado);
+
     setError('');
+    if (!(monto > 0)) {
+      setError('El monto a liberar debe ser mayor a 0');
+      return;
+    }
     setOperando(`liberar-${reserva.id_reserva}`);
     try {
       await api.post(`/reservas/${reserva.id_reserva}/liberar`, { monto });

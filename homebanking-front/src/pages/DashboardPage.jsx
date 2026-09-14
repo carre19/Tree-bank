@@ -30,7 +30,13 @@ export default function DashboardPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    api.get('/tarjetas').then((res) => setTarjetas(res.data)).catch(() => {});
+    // Tarjetas es una sección secundaria del dashboard: si falla, no bloquea
+    // el resto de la pantalla, pero el error queda en la consola en vez de
+    // desaparecer en silencio (para poder diagnosticar un token vencido, el
+    // backend caído, etc. sin adivinar por qué la sección quedó vacía).
+    api.get('/tarjetas').then((res) => setTarjetas(res.data)).catch((err) => {
+      console.error('No se pudieron cargar las tarjetas del dashboard:', err.response?.data?.error || err.message);
+    });
   }, []);
 
   const cargarCuentas = async () => {

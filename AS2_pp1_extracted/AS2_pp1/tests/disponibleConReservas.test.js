@@ -7,10 +7,19 @@ const request = require('supertest');
 
 jest.mock('../models/personaModel');
 jest.mock('../services/centralBankClient', () => ({ post: jest.fn() }));
+// realizarTransferencia ahora envuelve descontarSaldo/acreditarSaldo/registrarMovimiento
+// en una transaccion (db.connect() directo desde el controller), asi que sin este mock
+// el test abriria una conexion real a Postgres.
+jest.mock('../config/db', () => {
+    const mockClient = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 1 }), release: jest.fn() };
+    return { connect: jest.fn().mockResolvedValue(mockClient), query: jest.fn(), __mockClient: mockClient };
+});
 
 const Persona = require('../models/personaModel');
 const centralBank = require('../services/centralBankClient');
+const db = require('../config/db');
 const personaController = require('../controllers/personaController');
+const mockClient = db.__mockClient;
 
 const construirApp = () => {
     const app = express();
@@ -54,6 +63,7 @@ describe('Transferencias respetan el disponible (saldo - reservas)', () => {
         });
 
         expect(res.status).toBe(201);
-        expect(Persona.descontarSaldo).toHaveBeenCalledWith('CBU_ORIGEN', 1500);
+        // Ahora va dentro de una transaccion: recibe el client como tercer argumento
+        expect(Persona.descontarSaldo).toHaveBeenCalledWith('CBU_ORIGEN', 1500, mockClient);
     });
 });

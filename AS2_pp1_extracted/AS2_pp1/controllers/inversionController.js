@@ -9,6 +9,7 @@
 
 const Persona = require('../models/personaModel');
 const Inversion = require('../models/inversionModel');
+const db = require('../config/db');
 const { obtenerCotizaciones, buscarSimbolo, obtenerHistorico } = require('../services/mercadoService');
 const { validarEntero } = require('../utils/validaciones');
 
@@ -112,14 +113,24 @@ exports.comprar = async (req, res) => {
             });
         }
 
-        await Persona.descontarSaldo(cuenta.cbu, costoTotal);
-        await Inversion.comprar({ id_persona: req.usuario.id, mercado, simbolo, cantidad, precio: cotizacion.precio, moneda });
-        await Persona.registrarMovimiento({
-            id_cuenta: cuenta.id_cuenta,
-            tipo_movimiento: 'COMPRA_ACCION',
-            monto: costoTotal,
-            descripcion: `Compra de ${cantidad} ${simbolo} a ${moneda} ${cotizacion.precio}`,
-        });
+        const client = await db.connect();
+        try {
+            await client.query('BEGIN');
+            await Persona.descontarSaldo(cuenta.cbu, costoTotal, client);
+            await Inversion.comprar({ id_persona: req.usuario.id, mercado, simbolo, cantidad, precio: cotizacion.precio, moneda }, client);
+            await Persona.registrarMovimiento({
+                id_cuenta: cuenta.id_cuenta,
+                tipo_movimiento: 'COMPRA_ACCION',
+                monto: costoTotal,
+                descripcion: `Compra de ${cantidad} ${simbolo} a ${moneda} ${cotizacion.precio}`,
+            }, client);
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
 
         res.status(201).json({
             mensaje: `Compraste ${cantidad} ${simbolo} por ${moneda} ${costoTotal.toFixed(2)}`,
@@ -166,14 +177,35 @@ exports.vender = async (req, res) => {
 
         const totalRecibido = Number((cotizacion.precio * cantidad).toFixed(2));
 
-        await Inversion.vender({ id_persona: req.usuario.id, mercado, simbolo, cantidad });
-        await Persona.acreditarSaldo(cuenta.cbu, totalRecibido);
-        await Persona.registrarMovimiento({
-            id_cuenta: cuenta.id_cuenta,
-            tipo_movimiento: 'VENTA_ACCION',
-            monto: totalRecibido,
-            descripcion: `Venta de ${cantidad} ${simbolo} a ${moneda} ${cotizacion.precio}`,
-        });
+        const client = await db.connect();
+        try {
+            await client.query('BEGIN');
+
+            // Inversion.vender solo afecta una fila si todavia hay suficiente cantidad en
+            // ese momento (WHERE cantidad >= $1): si dos ventas de la misma tenencia llegan
+            // casi juntas, la primera en pasar por aca gana y la segunda no debe acreditar
+            // plata por acciones que ya no estan. Por eso se chequea el resultado antes de
+            // seguir, en vez de asumir que siempre funciono.
+            const actualizada = await Inversion.vender({ id_persona: req.usuario.id, mercado, simbolo, cantidad }, client);
+            if (!actualizada) {
+                throw new Error(`No tenes suficientes ${simbolo} para vender`);
+            }
+
+            await Persona.acreditarSaldo(cuenta.cbu, totalRecibido, client);
+            await Persona.registrarMovimiento({
+                id_cuenta: cuenta.id_cuenta,
+                tipo_movimiento: 'VENTA_ACCION',
+                monto: totalRecibido,
+                descripcion: `Venta de ${cantidad} ${simbolo} a ${moneda} ${cotizacion.precio}`,
+            }, client);
+
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
 
         res.status(201).json({
             mensaje: `Vendiste ${cantidad} ${simbolo} por ${moneda} ${totalRecibido.toFixed(2)}`,

@@ -17,6 +17,11 @@ const centralBank = require('../services/centralBankClient');
 // Conexión a Supabase para guardar las transacciones
 const db = require('../config/db');
 
+// El importe viene de una API externa (el Banco Central del profe): no se
+// confia en que siempre venga bien formado. Mismo validador que se usa para
+// cualquier monto que entra por un endpoint publico.
+const { validarMonto, aMonto } = require('../utils/validaciones');
+
 // Función principal de sincronización con el Banco Central
 const ejecutarSync = async () => {
     try {
@@ -57,11 +62,16 @@ const ejecutarSync = async () => {
                 );
 
                 if (existe.rows.length === 0) {
-                    // Acreditamos el saldo en la cuenta destino
-                    await db.query(
-                        'UPDATE cuentas_bancarias SET saldo = saldo + $1 WHERE id_cuenta = $2',
-                        [tx.importe, cuenta.id_cuenta]
-                    );
+                    // El Banco Central es una API externa: si mandara un importe faltante,
+                    // negativo o no-numerico, "saldo = saldo + NULL" (o un numero invalido)
+                    // podia arruinar el saldo de la cuenta en silencio. Se descarta la
+                    // transaccion si el importe no pasa la misma validacion que cualquier
+                    // monto que entra por un endpoint publico.
+                    if (!validarMonto(tx.importe)) {
+                        console.error(`⚠️ Sync: transaccion ${tx._id} con importe invalido (${JSON.stringify(tx.importe)}), se descarta`);
+                        continue;
+                    }
+                    const importe = aMonto(tx.importe);
 
                     // El Banco Central manda los datos del emisor en personaOrigen (nombre,
                     // apellido, cbu, alias). Los guardamos como contraparte del movimiento
@@ -69,13 +79,29 @@ const ejecutarSync = async () => {
                     const emisor = tx.personaOrigen || {};
                     const nombreEmisor = [emisor.nombre, emisor.apellido].filter(Boolean).join(' ') || null;
 
-                    // Registramos el movimiento en el historial
-                    // referencia_externa guarda el ID del Banco Central para evitar duplicados futuros
-                    await db.query(
-                        `INSERT INTO movimientos (id_cuenta, tipo_movimiento, monto, descripcion, referencia_externa, cbu_contraparte, nombre_contraparte, fecha)
-                         VALUES ($1, 'TRANSFERENCIA_INGRESO', $2, $3, $4, $5, $6, NOW())`,
-                        [cuenta.id_cuenta, tx.importe, tx.descripcion || 'Transferencia recibida del exterior', String(tx._id), tx.cbuOrigen || null, nombreEmisor]
-                    );
+                    // Acreditar el saldo y registrar el movimiento van en una transaccion:
+                    // si el INSERT fallara despues del UPDATE, la plata se acreditaria sin
+                    // dejar rastro en el historial (y sin la referencia_externa que evita
+                    // procesar esta misma transaccion dos veces en el proximo sync).
+                    const client = await db.connect();
+                    try {
+                        await client.query('BEGIN');
+                        await client.query(
+                            'UPDATE cuentas_bancarias SET saldo = saldo + $1 WHERE id_cuenta = $2',
+                            [importe, cuenta.id_cuenta]
+                        );
+                        await client.query(
+                            `INSERT INTO movimientos (id_cuenta, tipo_movimiento, monto, descripcion, referencia_externa, cbu_contraparte, nombre_contraparte, fecha)
+                             VALUES ($1, 'TRANSFERENCIA_INGRESO', $2, $3, $4, $5, $6, NOW())`,
+                            [cuenta.id_cuenta, importe, tx.descripcion || 'Transferencia recibida del exterior', String(tx._id), tx.cbuOrigen || null, nombreEmisor]
+                        );
+                        await client.query('COMMIT');
+                    } catch (e) {
+                        await client.query('ROLLBACK');
+                        throw e;
+                    } finally {
+                        client.release();
+                    }
 
                     sincronizadas++;
                 }

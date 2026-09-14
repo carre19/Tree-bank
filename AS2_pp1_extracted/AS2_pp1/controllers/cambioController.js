@@ -6,6 +6,7 @@
 // ============================================================
 
 const Persona = require('../models/personaModel');
+const db = require('../config/db');
 const { obtenerCotizacionOficial } = require('../services/cotizacionService');
 const { validarMonto, aMonto } = require('../utils/validaciones');
 
@@ -53,16 +54,29 @@ exports.realizarCambio = async (req, res) => {
                 return res.status(400).json({ error: `Saldo disponible insuficiente en ARS. Necesitas $ ${costoArs.toFixed(2)} (disponible: $ ${disponibleArs.toFixed(2)})` });
             }
 
-            await Persona.descontarSaldo(cuentaArs.cbu, costoArs);
-            await Persona.acreditarSaldo(cuentaUsd.cbu, montoUsd);
-            await Persona.registrarMovimiento({
-                id_cuenta: cuentaArs.id_cuenta, tipo_movimiento: 'CAMBIO_EGRESO',
-                monto: costoArs, descripcion: `Compra de USD ${montoUsd} a $${venta}`
-            });
-            await Persona.registrarMovimiento({
-                id_cuenta: cuentaUsd.id_cuenta, tipo_movimiento: 'CAMBIO_INGRESO',
-                monto: montoUsd, descripcion: `Compra de USD a $${venta}`
-            });
+            // Las dos patas del cambio (descontar ARS, acreditar USD) y sus dos movimientos
+            // van en una sola transaccion: si algo falla a mitad de camino, no puede quedar
+            // plata descontada de un lado sin haber aparecido del otro.
+            const client = await db.connect();
+            try {
+                await client.query('BEGIN');
+                await Persona.descontarSaldo(cuentaArs.cbu, costoArs, client);
+                await Persona.acreditarSaldo(cuentaUsd.cbu, montoUsd, client);
+                await Persona.registrarMovimiento({
+                    id_cuenta: cuentaArs.id_cuenta, tipo_movimiento: 'CAMBIO_EGRESO',
+                    monto: costoArs, descripcion: `Compra de USD ${montoUsd} a $${venta}`
+                }, client);
+                await Persona.registrarMovimiento({
+                    id_cuenta: cuentaUsd.id_cuenta, tipo_movimiento: 'CAMBIO_INGRESO',
+                    monto: montoUsd, descripcion: `Compra de USD a $${venta}`
+                }, client);
+                await client.query('COMMIT');
+            } catch (e) {
+                await client.query('ROLLBACK');
+                throw e;
+            } finally {
+                client.release();
+            }
 
             return res.status(201).json({
                 mensaje: `Compraste USD ${montoUsd} por $ ${costoArs.toFixed(2)}`,
@@ -77,16 +91,28 @@ exports.realizarCambio = async (req, res) => {
         }
         const recibeArs = Number((montoUsd * compra).toFixed(2));
 
-        await Persona.descontarSaldo(cuentaUsd.cbu, montoUsd);
-        await Persona.acreditarSaldo(cuentaArs.cbu, recibeArs);
-        await Persona.registrarMovimiento({
-            id_cuenta: cuentaUsd.id_cuenta, tipo_movimiento: 'CAMBIO_EGRESO',
-            monto: montoUsd, descripcion: `Venta de USD a $${compra}`
-        });
-        await Persona.registrarMovimiento({
-            id_cuenta: cuentaArs.id_cuenta, tipo_movimiento: 'CAMBIO_INGRESO',
-            monto: recibeArs, descripcion: `Venta de USD ${montoUsd} a $${compra}`
-        });
+        {
+            const client = await db.connect();
+            try {
+                await client.query('BEGIN');
+                await Persona.descontarSaldo(cuentaUsd.cbu, montoUsd, client);
+                await Persona.acreditarSaldo(cuentaArs.cbu, recibeArs, client);
+                await Persona.registrarMovimiento({
+                    id_cuenta: cuentaUsd.id_cuenta, tipo_movimiento: 'CAMBIO_EGRESO',
+                    monto: montoUsd, descripcion: `Venta de USD a $${compra}`
+                }, client);
+                await Persona.registrarMovimiento({
+                    id_cuenta: cuentaArs.id_cuenta, tipo_movimiento: 'CAMBIO_INGRESO',
+                    monto: recibeArs, descripcion: `Venta de USD ${montoUsd} a $${compra}`
+                }, client);
+                await client.query('COMMIT');
+            } catch (e) {
+                await client.query('ROLLBACK');
+                throw e;
+            } finally {
+                client.release();
+            }
+        }
 
         return res.status(201).json({
             mensaje: `Vendiste USD ${montoUsd} por $ ${recibeArs.toFixed(2)}`,

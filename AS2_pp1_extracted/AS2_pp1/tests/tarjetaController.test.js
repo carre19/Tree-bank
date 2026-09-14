@@ -7,11 +7,20 @@ const request = require('supertest');
 jest.mock('../models/tarjetaModel');
 jest.mock('../models/personaModel');
 jest.mock('../services/centralBankClient', () => ({ get: jest.fn() }));
+// pagarResumen ahora envuelve descontarSaldo + registrarPagoResumen + registrarMovimiento
+// en una transaccion (db.connect() directo desde el controller, no a traves del model
+// mockeado), asi que sin este mock el test abriria una conexion real a Postgres.
+jest.mock('../config/db', () => {
+    const mockClient = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 1 }), release: jest.fn() };
+    return { connect: jest.fn().mockResolvedValue(mockClient), query: jest.fn(), __mockClient: mockClient };
+});
 
 const Tarjeta = require('../models/tarjetaModel');
 const Persona = require('../models/personaModel');
 const centralBank = require('../services/centralBankClient');
+const db = require('../config/db');
 const tarjetaController = require('../controllers/tarjetaController');
+const mockClient = db.__mockClient;
 
 Tarjeta.MARCAS_VALIDAS = ['VISA', 'MASTERCARD'];
 
@@ -116,10 +125,12 @@ describe('POST /tarjetas/:id/pagar-resumen — pagarResumen', () => {
 
         const res = await request(app).post('/tarjetas/1/pagar-resumen').send({ monto: 300 });
         expect(res.status).toBe(200);
-        expect(Persona.descontarSaldo).toHaveBeenCalledWith('CBU_ARS', 300);
+        // Ahora van dentro de una transaccion: reciben el client de la transaccion
+        // como tercer argumento (ver jest.mock('../config/db') mas arriba)
+        expect(Persona.descontarSaldo).toHaveBeenCalledWith('CBU_ARS', 300, mockClient);
         expect(Tarjeta.registrarMovimiento).toHaveBeenCalledWith({
             id_tarjeta: '1', id_cuenta: 1, tipo_movimiento: 'TARJETA_PAGO', monto: 300, descripcion: 'Pago de resumen de tarjeta',
-        });
+        }, mockClient);
     });
 });
 

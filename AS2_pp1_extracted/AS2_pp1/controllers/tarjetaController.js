@@ -8,6 +8,7 @@
 const centralBank = require('../services/centralBankClient');
 const Tarjeta = require('../models/tarjetaModel');
 const Persona = require('../models/personaModel');
+const db = require('../config/db');
 const { validarMonto, aMonto } = require('../utils/validaciones');
 
 const SITUACION_LIMITE = 4; // 4 (riesgo alto) o 5 (irrecuperable) -> se rechaza
@@ -53,6 +54,9 @@ exports.emitirTarjeta = async (req, res) => {
             tarjeta
         });
     } catch (error) {
+        if (error.codigo === 'TARJETA_DUPLICADA') {
+            return res.status(409).json({ error: error.message });
+        }
         res.status(500).json({ error: 'No se pudo emitir la tarjeta', detalle: error.message });
     }
 };
@@ -140,15 +144,26 @@ exports.pagarResumen = async (req, res) => {
             return res.status(400).json({ error: `Saldo disponible insuficiente en tu caja en ARS para pagar el resumen (disponible: $ ${disponible.toFixed(2)})` });
         }
 
-        await Persona.descontarSaldo(cuenta.cbu, monto);
-        const actualizada = await Tarjeta.registrarPagoResumen(id, monto);
-        await Tarjeta.registrarMovimiento({
-            id_tarjeta: id,
-            id_cuenta: cuenta.id_cuenta,
-            tipo_movimiento: 'TARJETA_PAGO',
-            monto,
-            descripcion: 'Pago de resumen de tarjeta'
-        });
+        const client = await db.connect();
+        let actualizada;
+        try {
+            await client.query('BEGIN');
+            await Persona.descontarSaldo(cuenta.cbu, monto, client);
+            actualizada = await Tarjeta.registrarPagoResumen(id, monto, client);
+            await Tarjeta.registrarMovimiento({
+                id_tarjeta: id,
+                id_cuenta: cuenta.id_cuenta,
+                tipo_movimiento: 'TARJETA_PAGO',
+                monto,
+                descripcion: 'Pago de resumen de tarjeta'
+            }, client);
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
 
         res.json({ mensaje: 'Pago registrado correctamente', tarjeta: actualizada });
     } catch (error) {

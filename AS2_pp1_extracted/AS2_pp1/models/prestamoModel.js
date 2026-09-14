@@ -23,11 +23,15 @@ const Prestamo = {
     return { tasa, monto_cuota, saldo_pendiente };
   },
 
-  // Crea el producto + el prestamo en una sola transaccion
-  crearPrestamo: async ({ id_persona, monto, tasa_interes, cuotas_totales, monto_cuota, saldo_pendiente, situacion_al_otorgar }) => {
-    const client = await db.connect();
+  // Crea el producto + el prestamo. Si se pasa un client externo (porque el
+  // caller ya abrio su propia transaccion, p. ej. para acreditar el monto en
+  // la cuenta en el mismo commit), lo usa tal cual y deja que el caller maneje
+  // BEGIN/COMMIT/ROLLBACK y el release. Si no, se maneja sola como antes.
+  crearPrestamo: async ({ id_persona, monto, tasa_interes, cuotas_totales, monto_cuota, saldo_pendiente, situacion_al_otorgar }, clienteExterno = null) => {
+    const client = clienteExterno || await db.connect();
+    const propiaTransaccion = !clienteExterno;
     try {
-      await client.query('BEGIN');
+      if (propiaTransaccion) await client.query('BEGIN');
 
       const resProducto = await client.query(
         `INSERT INTO productos (id_persona, id_tipo_producto, id_estado_producto)
@@ -43,14 +47,29 @@ const Prestamo = {
         [id_producto, monto, tasa_interes, cuotas_totales, monto_cuota, saldo_pendiente, situacion_al_otorgar]
       );
 
-      await client.query('COMMIT');
+      if (propiaTransaccion) await client.query('COMMIT');
       return { id_producto, ...resPrestamo.rows[0] };
     } catch (e) {
-      await client.query('ROLLBACK');
+      if (propiaTransaccion) await client.query('ROLLBACK');
       throw e;
     } finally {
-      client.release();
+      if (propiaTransaccion) client.release();
     }
+  },
+
+  // Suma de saldo_pendiente de todos los prestamos ACTIVOS de una persona: cuanto
+  // debe hoy en total, sin contar los ya CERRADOS ni los BLOQUEADOS/en mora (esos
+  // ya se reportaron a la Central de Deudores, no hace falta sumarlos de nuevo aca).
+  getDeudaActivaTotal: async (id_persona) => {
+    const { rows } = await db.query(
+      `SELECT COALESCE(SUM(pr.saldo_pendiente), 0) AS total
+       FROM prestamos pr
+       JOIN productos p ON pr.id_producto = p.id_producto
+       JOIN estados_producto ep ON p.id_estado_producto = ep.id_estado_producto
+       WHERE p.id_persona = $1 AND ep.nombre = 'ACTIVO'`,
+      [id_persona]
+    );
+    return Number(rows[0].total);
   },
 
   // Todos los prestamos de una persona (para "Mis prestamos")
@@ -84,8 +103,8 @@ const Prestamo = {
 
   // Registra el pago de una cuota (resta del saldo pendiente, suma una cuota pagada,
   // y empuja el proximo vencimiento un mes para adelante)
-  registrarPagoCuota: async (id_prestamo, monto_cuota) => {
-    const { rows } = await db.query(
+  registrarPagoCuota: async (id_prestamo, monto_cuota, client = db) => {
+    const { rows } = await client.query(
       `UPDATE prestamos
        SET cuotas_pagadas = cuotas_pagadas + 1,
            saldo_pendiente = GREATEST(saldo_pendiente - $2, 0),

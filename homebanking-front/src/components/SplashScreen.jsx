@@ -1,15 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // Splash de bienvenida post-login: los árboles de Tree Bank "crecen"
 // y la pantalla se funde hacia el dashboard.
 export default function SplashScreen({ nombre, onFin }) {
   const [saliendo, setSaliendo] = useState(false);
 
+  // App.jsx pasa onFin como una arrow function inline, asi que es una
+  // referencia nueva en cada render del padre (p. ej. cuando AuthContext
+  // actualiza la foto de perfil justo despues del login). Guardarla en un
+  // ref y no depender de ella en el efecto evita que cualquier re-render
+  // del padre mientras el splash esta visible reinicie los timers de salida.
+  const onFinRef = useRef(onFin);
+  useEffect(() => { onFinRef.current = onFin; }, [onFin]);
+
   useEffect(() => {
     const t1 = setTimeout(() => setSaliendo(true), 2500);
-    const t2 = setTimeout(onFin, 3100);
+    const t2 = setTimeout(() => onFinRef.current(), 3100);
     return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [onFin]);
+  }, []);
 
   return (
     <div className={`splash${saliendo ? ' splash-out' : ''}`}>

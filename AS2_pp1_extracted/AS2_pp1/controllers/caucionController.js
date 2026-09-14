@@ -12,6 +12,7 @@
 
 const Persona = require('../models/personaModel');
 const Caucion = require('../models/caucionModel');
+const db = require('../config/db');
 const { validarMonto, aMonto } = require('../utils/validaciones');
 
 // GET /api/cauciones/plazos — Tabla de tasas vigente, para armar el formulario.
@@ -69,18 +70,29 @@ exports.colocar = async (req, res) => {
 
         const { tasa_anual, monto_a_cobrar } = Caucion.simular(monto, plazo_dias);
 
-        await Persona.descontarSaldo(cuenta.cbu, monto);
-        const caucion = await Caucion.crear({
-            id_persona: req.usuario.id,
-            id_cuenta: cuenta.id_cuenta,
-            monto, plazo_dias, tasa_anual, monto_a_cobrar,
-        });
-        await Persona.registrarMovimiento({
-            id_cuenta: cuenta.id_cuenta,
-            tipo_movimiento: 'CAUCION_COLOCADA',
-            monto,
-            descripcion: `Caucion a ${plazo_dias} dia(s), TNA ${tasa_anual}%`,
-        });
+        const client = await db.connect();
+        let caucion;
+        try {
+            await client.query('BEGIN');
+            await Persona.descontarSaldo(cuenta.cbu, monto, client);
+            caucion = await Caucion.crear({
+                id_persona: req.usuario.id,
+                id_cuenta: cuenta.id_cuenta,
+                monto, plazo_dias, tasa_anual, monto_a_cobrar,
+            }, client);
+            await Persona.registrarMovimiento({
+                id_cuenta: cuenta.id_cuenta,
+                tipo_movimiento: 'CAUCION_COLOCADA',
+                monto,
+                descripcion: `Caucion a ${plazo_dias} dia(s), TNA ${tasa_anual}%`,
+            }, client);
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
 
         res.status(201).json({
             mensaje: `Colocaste $ ${monto.toFixed(2)} a ${plazo_dias} dia(s). Vas a cobrar $ ${monto_a_cobrar.toFixed(2)} al vencimiento.`,

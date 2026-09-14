@@ -198,17 +198,25 @@ function PanelAcciones({ mercado }) {
 
   const intervaloRef = useRef(null);
 
+  // Guarda el mercado del efecto mas reciente: si el usuario cambia de pestaña
+  // (AR -> EX) mientras un fetch del mercado viejo todavia esta en vuelo, esa
+  // respuesta llega tarde y no debe pisar el estado del mercado que se esta
+  // mostrando ahora (los precios de un mercado apareciendo bajo el otro).
+  const mercadoVigenteRef = useRef(mercado);
+
   const cargarCotizaciones = async () => {
     try {
       const res = await api.get(`/inversiones/cotizaciones/${mercado}`);
+      if (mercadoVigenteRef.current !== mercado) return; // respuesta obsoleta
       setCotizaciones(res.data.datos);
       setActualizado(res.data.actualizado);
       setFuente(res.data.fuente);
       setError('');
     } catch (err) {
+      if (mercadoVigenteRef.current !== mercado) return;
       setError(err.response?.data?.error || 'No se pudieron obtener las cotizaciones');
     } finally {
-      setCargando(false);
+      if (mercadoVigenteRef.current === mercado) setCargando(false);
     }
   };
 
@@ -216,12 +224,14 @@ function PanelAcciones({ mercado }) {
     setCargandoTenencias(true);
     try {
       const res = await api.get('/inversiones/tenencias');
+      if (mercadoVigenteRef.current !== mercado) return;
       setTenencias(res.data.filter((t) => t.mercado === mercado));
     } catch { /* si falla, se queda con lo que ya tenia */ }
-    finally { setCargandoTenencias(false); }
+    finally { if (mercadoVigenteRef.current === mercado) setCargandoTenencias(false); }
   };
 
   useEffect(() => {
+    mercadoVigenteRef.current = mercado;
     setCargando(true);
     cargarCotizaciones();
     cargarTenencias();

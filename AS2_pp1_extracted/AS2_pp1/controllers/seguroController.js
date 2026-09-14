@@ -7,6 +7,7 @@
 
 const Seguro = require('../models/seguroModel');
 const Persona = require('../models/personaModel');
+const db = require('../config/db');
 
 // POST /api/seguros — Contrata una poliza nueva (cobra la primera prima al instante)
 exports.contratarPoliza = async (req, res) => {
@@ -27,15 +28,28 @@ exports.contratarPoliza = async (req, res) => {
             return res.status(400).json({ error: `Disponible insuficiente para la primera prima ($ ${prima_mensual.toFixed(2)}). Disponible: $ ${disponible.toFixed(2)}` });
         }
 
-        const poliza = await Seguro.contratarPoliza({ id_persona: req.usuario.id, tipo_seguro });
-
-        await Persona.descontarSaldo(cuenta.cbu, prima_mensual);
-        await Persona.registrarMovimiento({
-            id_cuenta: cuenta.id_cuenta,
-            tipo_movimiento: 'SEGURO_PRIMA',
-            monto: prima_mensual,
-            descripcion: `Alta de poliza ${tipo_seguro.toLowerCase().replace('_', ' ')}: primera prima`
-        });
+        // Alta de poliza + cobro de la primera prima en una sola transaccion: sin
+        // esto, si el descuento fallaba despues del alta, quedaba una poliza
+        // activa sin haber cobrado la primera prima.
+        const client = await db.connect();
+        let poliza;
+        try {
+            await client.query('BEGIN');
+            poliza = await Seguro.contratarPoliza({ id_persona: req.usuario.id, tipo_seguro }, client);
+            await Persona.descontarSaldo(cuenta.cbu, prima_mensual, client);
+            await Persona.registrarMovimiento({
+                id_cuenta: cuenta.id_cuenta,
+                tipo_movimiento: 'SEGURO_PRIMA',
+                monto: prima_mensual,
+                descripcion: `Alta de poliza ${tipo_seguro.toLowerCase().replace('_', ' ')}: primera prima`
+            }, client);
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
 
         res.status(201).json({ mensaje: 'Poliza contratada correctamente', poliza });
     } catch (error) {
@@ -74,14 +88,25 @@ exports.pagarPrima = async (req, res) => {
             return res.status(400).json({ error: `Disponible insuficiente para pagar la prima (disponible: $ ${disponible.toFixed(2)})` });
         }
 
-        await Persona.descontarSaldo(cuenta.cbu, poliza.prima_mensual);
-        const actualizada = await Seguro.pagarPrima(id);
-        await Persona.registrarMovimiento({
-            id_cuenta: cuenta.id_cuenta,
-            tipo_movimiento: 'SEGURO_PRIMA',
-            monto: poliza.prima_mensual,
-            descripcion: `Pago de prima: poliza ${poliza.tipo_seguro.toLowerCase().replace('_', ' ')}`
-        });
+        const client = await db.connect();
+        let actualizada;
+        try {
+            await client.query('BEGIN');
+            await Persona.descontarSaldo(cuenta.cbu, poliza.prima_mensual, client);
+            actualizada = await Seguro.pagarPrima(id, client);
+            await Persona.registrarMovimiento({
+                id_cuenta: cuenta.id_cuenta,
+                tipo_movimiento: 'SEGURO_PRIMA',
+                monto: poliza.prima_mensual,
+                descripcion: `Pago de prima: poliza ${poliza.tipo_seguro.toLowerCase().replace('_', ' ')}`
+            }, client);
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
 
         res.json({ mensaje: 'Prima pagada correctamente', poliza: actualizada });
     } catch (error) {
