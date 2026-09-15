@@ -25,6 +25,41 @@ const SITUACION_LIMITE = 4; // 4 (riesgo alto) o 5 (irrecuperable) -> se rechaza
 const PISO_PRESTAMO = 5000;
 const MULTIPLO_CAPACIDAD = 3;
 
+// Calcula cuanto se le puede prestar en total a una persona y cuanto le
+// queda disponible hoy, descontando lo que ya debe de prestamos activos.
+// Lo usan tanto GET /prestamos/limite (para mostrarlo antes de pedir) como
+// solicitarPrestamo (para validar la solicitud).
+const calcularLimite = async (id_persona, cuenta) => {
+    const [capacidad, deudaActiva] = await Promise.all([
+        Persona.getTotalIngresadoReal(cuenta.id_cuenta),
+        Prestamo.getDeudaActivaTotal(id_persona),
+    ]);
+    const limitePrestable = PISO_PRESTAMO + capacidad * MULTIPLO_CAPACIDAD;
+    const disponibleParaPedir = Math.max(0, limitePrestable - deudaActiva);
+    return { limitePrestable, deudaActiva, disponibleParaPedir };
+};
+
+// GET /api/prestamos/limite — Cuanto puede pedir de prestamo el usuario logueado
+// hoy, segun su movimiento real en el banco y lo que ya debe de otros prestamos
+// activos. El frontend lo usa para mostrar el maximo antes de que arme la
+// solicitud, y para bloquear el formulario si ya no le queda margen.
+exports.obtenerLimite = async (req, res) => {
+    try {
+        const cuenta = await Persona.getCuentaArsPorPersona(req.usuario.id);
+        if (!cuenta) {
+            return res.status(404).json({ error: 'No se encontro una cuenta en ARS para acreditar el prestamo' });
+        }
+        const { limitePrestable, deudaActiva, disponibleParaPedir } = await calcularLimite(req.usuario.id, cuenta);
+        res.json({
+            limite_prestable: limitePrestable,
+            deuda_activa: deudaActiva,
+            disponible_para_pedir: disponibleParaPedir,
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'No se pudo calcular el limite de prestamo', detalle: error.message });
+    }
+};
+
 // POST /api/prestamos — Solicita un prestamo (requiere estar logueado)
 exports.solicitarPrestamo = async (req, res) => {
     const monto = aMonto(req.body.monto);
@@ -49,11 +84,7 @@ exports.solicitarPrestamo = async (req, res) => {
         // activos, no puede superar lo que la cuenta puede respaldar segun lo que
         // efectivamente ingreso (ver PISO_PRESTAMO/MULTIPLO_CAPACIDAD mas arriba).
         const deudaNueva = saldo_pendiente;
-        const [capacidad, deudaActiva] = await Promise.all([
-            Persona.getTotalIngresadoReal(cuenta.id_cuenta),
-            Prestamo.getDeudaActivaTotal(req.usuario.id),
-        ]);
-        const limitePrestable = PISO_PRESTAMO + capacidad * MULTIPLO_CAPACIDAD;
+        const { limitePrestable, deudaActiva } = await calcularLimite(req.usuario.id, cuenta);
         if (deudaActiva + deudaNueva > limitePrestable) {
             const disponibleParaPedir = Math.max(0, limitePrestable - deudaActiva);
             return res.status(400).json({

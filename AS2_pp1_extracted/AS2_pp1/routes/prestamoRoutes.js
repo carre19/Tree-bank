@@ -16,6 +16,9 @@ router.post('/prestamos', verificarToken, prestamoController.solicitarPrestamo);
 // GET /api/prestamos — Lista los prestamos del usuario logueado
 router.get('/prestamos', verificarToken, prestamoController.listarMisPrestamos);
 
+// GET /api/prestamos/limite — Monto maximo que el usuario logueado puede pedir hoy
+router.get('/prestamos/limite', verificarToken, prestamoController.obtenerLimite);
+
 // POST /api/prestamos/:id/pagar-cuota — Paga la siguiente cuota
 router.post('/prestamos/:id/pagar-cuota', verificarToken, prestamoController.pagarCuota);
 

@@ -34,6 +34,7 @@ export default function PrestamosPage() {
   const [formError, setFormError] = useState('');
   const [resultado, setResultado] = useState(null); // respuesta del backend (aprobado o rechazado)
   const [pagando, setPagando] = useState(null); // id_prestamo en curso
+  const [limite, setLimite] = useState(null); // { disponible_para_pedir, limite_prestable, deuda_activa }
 
   const cargarPrestamos = async () => {
     try {
@@ -46,7 +47,18 @@ export default function PrestamosPage() {
     }
   };
 
-  useEffect(() => { cargarPrestamos(); }, []);
+  const cargarLimite = async () => {
+    try {
+      const res = await api.get('/prestamos/limite');
+      setLimite(res.data);
+    } catch {
+      setLimite(null);
+    }
+  };
+
+  useEffect(() => { cargarPrestamos(); cargarLimite(); }, []);
+
+  const sinMargen = limite != null && limite.disponible_para_pedir <= 0;
 
   const handleSolicitar = async (e) => {
     e.preventDefault();
@@ -61,8 +73,13 @@ export default function PrestamosPage() {
       setResultado({ ok: true, mensaje: res.data.mensaje, situacion: res.data.situacion_al_otorgar });
       setMonto('');
       cargarPrestamos();
+      cargarLimite();
     } catch (err) {
-      setResultado({ ok: false, mensaje: err.response?.data?.error || 'No se pudo procesar la solicitud' });
+      const data = err.response?.data;
+      setResultado({ ok: false, mensaje: data?.error || 'No se pudo procesar la solicitud' });
+      if (data?.limite_prestable != null) {
+        setLimite({ limite_prestable: data.limite_prestable, deuda_activa: data.deuda_activa, disponible_para_pedir: data.disponible_para_pedir });
+      }
     } finally {
       setEnviando(false);
     }
@@ -195,7 +212,19 @@ export default function PrestamosPage() {
       {/* ════════ VISTA: SOLICITAR ════════ */}
       {vista === 'solicitar' && (
         <div className="card anim-up-1">
+          {limite != null && (
+            <div className={`alert ${sinMargen ? 'alert-error' : 'alert-info'}`} style={{ marginBottom: 18 }}>
+              <Icon name={sinMargen ? 'alert' : 'loan'} size={16} />
+              <span>
+                {sinMargen
+                  ? `Ya alcanzaste tu límite de préstamos (límite total: $ ${fmt(limite.limite_prestable)}). Pagá cuotas de tus préstamos activos para poder pedir más.`
+                  : `Podés pedir hasta $ ${fmt(limite.disponible_para_pedir)} (límite total: $ ${fmt(limite.limite_prestable)}, calculado según tu movimiento real en el banco).`}
+              </span>
+            </div>
+          )}
+
           <form onSubmit={handleSolicitar}>
+            <fieldset disabled={sinMargen} style={{ border: 'none', padding: 0, margin: 0 }}>
             <div className="field">
               <label className="label">Monto a solicitar</label>
               <div className="amount-box">
@@ -207,6 +236,7 @@ export default function PrestamosPage() {
                   value={monto}
                   onChange={(e) => setMonto(e.target.value)}
                   min="1"
+                  max={limite?.disponible_para_pedir || undefined}
                   step="0.01"
                   required
                 />
@@ -256,10 +286,11 @@ export default function PrestamosPage() {
               <span>Antes de aprobar, consultamos tu situación en la Central de Deudores del sistema bancario.</span>
             </div>
 
-            <button className="btn-primary" type="submit" disabled={enviando}>
+            <button className="btn-primary" type="submit" disabled={enviando || sinMargen}>
               {enviando ? 'Consultando situación crediticia…' : 'Solicitar préstamo'}
               {!enviando && <Icon name="loan" size={16} />}
             </button>
+            </fieldset>
           </form>
         </div>
       )}
