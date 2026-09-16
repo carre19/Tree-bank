@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import AppLayout from '../components/AppLayout';
 import Icon from '../components/Icon';
+import GananciaInversionesItem, { useGananciaInversionesArs } from '../components/GananciaInversiones';
 import api from '../api/api';
 
 // Solo lo que no está ya en el sidebar/bottom nav (Inicio, Transferir,
@@ -27,6 +28,7 @@ export default function DashboardPage() {
   const [abriendoUsd, setAbriendoUsd] = useState(false);
   const [errorUsd, setErrorUsd]     = useState('');
   const [tarjetas, setTarjetas]     = useState([]);
+  const { ganancia: gananciaInversiones } = useGananciaInversionesArs();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -142,6 +144,12 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
+
+          {gananciaInversiones != null && (
+            <div className="dash-panel anim-up-2" style={{ marginTop: 18 }}>
+              <GananciaInversionesItem ganancia={gananciaInversiones} />
+            </div>
+          )}
 
           {!tieneUsd && (
             <div className="dash-panel anim-up-2" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginTop: 18 }}>

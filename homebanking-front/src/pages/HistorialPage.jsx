@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AppLayout from '../components/AppLayout';
 import Icon from '../components/Icon';
+import GananciaInversionesItem, { useGananciaInversionesArs } from '../components/GananciaInversiones';
 import api from '../api/api';
 import { CATEGORIAS, infoMovimiento, categoriasPresentes, agruparPorCategoria } from '../data/categoriasMovimiento';
 
@@ -107,6 +108,7 @@ export default function HistorialPage() {
   const [periodo, setPeriodo]         = useState('todo');
   const [desde, setDesde]             = useState('');
   const [hasta, setHasta]             = useState('');
+  const { ganancia: gananciaInversiones } = useGananciaInversionesArs();
 
   useEffect(() => {
     const cargar = async () => {
@@ -355,6 +357,15 @@ export default function HistorialPage() {
           </button>
         ))}
       </div>
+
+      {/* Ganancia no realizada de inversiones: no es un movimiento real (no
+          se acredito ni debito nada), por eso va aparte de la lista filtrada
+          por periodo/categoria y se actualiza sola en vivo */}
+      {gananciaInversiones != null && (
+        <div className="card anim-up-2" style={{ marginBottom: 10 }}>
+          <GananciaInversionesItem ganancia={gananciaInversiones} />
+        </div>
+      )}
 
       {/* Lista */}
       {cargando && (

@@ -411,7 +411,12 @@ function PanelAcciones({ mercado }) {
       ) : (
         <div className="anim-up-2" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {tenencias.map((t) => {
-            const valorActual = t.precio_actual != null ? t.precio_actual * Number(t.cantidad) : null;
+            // Precio en vivo (viene del mismo panel de cotizaciones que ya se
+            // refresca solo cada INTERVALO_REFRESCO_MS): asi la ganancia se
+            // recalcula en tiempo real en vez de quedar congelada en el precio
+            // que habia al entrar a la pagina o al ultimo comprar/vender.
+            const precioLive = cotizacionDe(t.simbolo)?.precio ?? t.precio_actual;
+            const valorActual = precioLive != null ? precioLive * Number(t.cantidad) : null;
             const costo = Number(t.precio_promedio) * Number(t.cantidad);
             const ganancia = valorActual != null ? valorActual - costo : null;
             const gananciaPositiva = (ganancia ?? 0) >= 0;
@@ -422,7 +427,7 @@ function PanelAcciones({ mercado }) {
                 </div>
                 <div className="tx-info" style={{ cursor: 'pointer' }} onClick={() => setHistoricoSimbolo(t.simbolo)}>
                   <p className="tx-desc">{t.simbolo} · {fmt(t.cantidad, 0)} {Number(t.cantidad) === 1 ? 'unidad' : 'unidades'}</p>
-                  <p className="tx-date">PPC {simbolo} {fmt(t.precio_promedio)}{t.precio_actual != null ? ` · actual ${simbolo} ${fmt(t.precio_actual)}` : ''}</p>
+                  <p className="tx-date">PPC {simbolo} {fmt(t.precio_promedio)}{precioLive != null ? ` · actual ${simbolo} ${fmt(precioLive)}` : ''}</p>
                 </div>
                 <div className="tx-right">
                   <p className="tx-amount" style={{ color: 'var(--text)' }}>{simbolo} {fmt(valorActual ?? costo)}</p>
