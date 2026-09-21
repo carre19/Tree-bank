@@ -1,0 +1,60 @@
+# ============================================================
+# render.yaml — DEFINICION DEL BACKEND EN RENDER
+# Sirve para crear el servicio desde "New > Blueprint" apuntando a este repo:
+# Render lee esta receta y no hay que completar nada a mano salvo los secretos
+# (los marcados con sync: false, que se cargan una vez desde el panel).
+# Si el servicio se crea a mano desde el panel, este archivo queda como
+# documentacion de que configuracion tiene que tener.
+# ============================================================
+
+services:
+  - type: web
+    name: tree-bank-api
+    runtime: node
+    plan: free
+    region: oregon
+    # El backend no esta en la raiz del repo, sino en esta subcarpeta
+    rootDir: AS2_pp1_extracted/AS2_pp1
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: "production"
+      # Render inyecta su propio PORT y app.js ya lo respeta (process.env.PORT)
+      - key: DB_PORT
+        value: "6543"          # pooler de Supabase (el 5432 directo es solo IPv6)
+      - key: DB_NAME
+        value: "postgres"
+      - key: DB_SSL
+        value: "true"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: CENTRAL_BANK_URL
+        value: "https://centralbank.brocoly.cc/api"
+      - key: X_ENVIRONMENT
+        value: "test"
+      - key: COTIZACION_USD_FALLBACK_COMPRA
+        value: "1000"
+      - key: COTIZACION_USD_FALLBACK_VENTA
+        value: "1050"
+      # --- Secretos y valores propios: se cargan desde el panel de Render ---
+      - key: DB_HOST
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: CENTRAL_BANK_API_KEY
+        sync: false
+      - key: NUMERO_BANK
+        sync: false
+      # Dominio del front en Netlify (con el * para los deploy previews)
+      - key: CORS_ORIGINS
+        sync: false

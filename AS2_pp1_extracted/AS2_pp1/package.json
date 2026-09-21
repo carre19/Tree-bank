@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Proyecto de Homebanking - Practicas II",
   "main": "app.js",
+  "engines": {
+    "node": ">=20.19"
+  },
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",

@@ -33,6 +33,122 @@ npm run dev            # http://localhost:5173
 > Usar `.env.example` como plantilla. En producción hay que setear además
 > `CORS_ORIGINS` con el dominio real del frontend (ver [Seguridad](#seguridad)).
 
+## Deploy
+
+El proyecto está partido en tres servicios gratuitos:
+
+| Pieza | Dónde vive | Qué se publica |
+|-------|-----------|----------------|
+| Base de datos | **Supabase** | PostgreSQL, ya creado (las tablas salen de `init/*.sql`) |
+| Backend | **Render** | Web service Node que corre `AS2_pp1_extracted/AS2_pp1` |
+| Frontend | **Netlify** | Sitio estático con el `dist/` que genera Vite |
+
+El orden importa: primero la base, después el backend (necesita los datos de la
+base), y al final el frontend (necesita la URL del backend).
+
+### 1. Base de datos — Supabase
+
+Ya está creada. Lo único a verificar, en *Project settings → Database →
+Connection string → **Transaction pooler***:
+
+- El host tiene que ser el del **pooler** (`aws-1-...pooler.supabase.com`) con
+  puerto **6543**. La conexión directa (`db.<ref>.supabase.co:5432`) es solo
+  IPv6 y Render no puede salir por IPv6: da *connection timeout*.
+- El usuario del pooler es `postgres.<ref-del-proyecto>`, no `postgres` a secas.
+- Si falta alguna tabla nueva, correr el `init/NN_*.sql` que falte en el SQL
+  Editor de Supabase. Los scripts no corren solos en el deploy.
+
+### 2. Backend — Render
+
+1. **New → Web Service** y conectar el repo de GitHub.
+2. Configuración:
+   - **Root Directory**: `AS2_pp1_extracted/AS2_pp1` (clave: el backend no está
+     en la raíz del repo)
+   - **Build Command**: `npm ci`
+   - **Start Command**: `npm start`
+   - **Health Check Path**: `/health`
+3. **Environment Variables**: copiar todas las del `.env` local, más las tres
+   que solo aplican a producción:
+
+   | Variable | Valor en Render |
+   |----------|-----------------|
+   | `NODE_ENV` | `production` |
+   | `DB_SSL` | `true` — la conexión a Supabase sale por internet y va cifrada |
+   | `TRUST_PROXY` | `1` — sin esto el limitador de login ve la IP del proxy de Render y un solo atacante bloquea a todos los usuarios |
+   | `CORS_ORIGINS` | el dominio de Netlify (paso 3). Se completa después del primer deploy del front |
+
+   `PORT` **no** se carga: Render inyecta el suyo y `app.js` ya lo respeta.
+   Los valores se pegan **sin comillas** (en el `.env` local algunos las tienen;
+   ahí las saca dotenv, en el panel de Render quedarían como parte del valor).
+
+4. Terminado el deploy, probar `https://<servicio>.onrender.com/health` →
+   tiene que devolver `{"ok":true,...}`.
+
+> Alternativa: el repo trae un `render.yaml` en la raíz. Con **New → Blueprint**,
+> Render arma el servicio con toda esta configuración puesta y solo pide cargar
+> los secretos.
+
+### 3. Frontend — Netlify
+
+1. **Add new site → Import an existing project** y elegir el mismo repo.
+2. No hay que completar build command ni publish directory: el
+   `homebanking-front/netlify.toml` ya define la carpeta base, el build y el
+   redirect de SPA.
+3. **Site configuration → Environment variables**, agregar una sola:
+
+   ```
+   VITE_API_URL = https://<servicio>.onrender.com/api
+   ```
+
+   El `/api` del final es obligatorio: el front lo usa como `baseURL` de axios.
+4. Volver a Render y poner en `CORS_ORIGINS` el dominio del sitio:
+
+   ```
+   https://<sitio>.netlify.app,*--<sitio>.netlify.app
+   ```
+
+   El segundo, con `*`, habilita los deploy previews de las ramas. Render
+   reinicia solo al guardar la variable.
+
+### Cómo se actualiza cuando hacemos cambios
+
+Los dos servicios quedan enganchados a la rama `main` del repo:
+
+```bash
+git add .
+git commit -m "lo que se cambió"
+git push
+```
+
+Con eso, **Netlify y Render rebuildean solos** el servicio que corresponda
+(unos 1-3 minutos). No hay que volver a tocar ningún panel, salvo en tres casos:
+
+- **Se agregó una variable de entorno** → hay que cargarla a mano en el panel
+  (Render o Netlify) antes de que el código que la usa llegue a producción.
+- **Se cambió `VITE_API_URL`** → Vite hornea esa URL dentro del bundle en el
+  build, así que no alcanza con guardarla: hay que hacer *Deploys → Trigger
+  deploy → **Clear cache and deploy site***.
+- **Se agregó una tabla o columna** → correr el `init/NN_*.sql` nuevo en el SQL
+  Editor de Supabase. Ningún deploy toca el esquema de la base.
+
+Conviene probar el build del front antes de pushear, para no gastar un deploy
+fallido: `cd homebanking-front && npm run build`.
+
+### Limitaciones del plan gratis de Render
+
+La instancia se **duerme a los 15 minutos sin tráfico**. Eso tiene dos efectos:
+
+- El primer pedido después de la siesta tarda ~50 segundos (el login parece
+  colgado, pero está arrancando el servidor).
+- Mientras duerme **no corren los cron jobs**: el sync con el Banco Central cada
+  15 minutos, la mora de préstamos, la caducidad de pólizas y la liquidación de
+  cauciones. Las transferencias de otros bancos entran recién cuando alguien
+  despierta el servicio.
+
+Para una demo o una entrega, la solución simple es un ping externo (por ejemplo
+[cron-job.org](https://cron-job.org), gratis) a `https://<servicio>.onrender.com/health`
+cada 10 minutos: mantiene el servicio despierto y los cron jobs corriendo.
+
 ## Roles
 
 El sistema tiene dos tipos de usuario, guardados en las tablas `Roles` / `Roles_x_Personas`:

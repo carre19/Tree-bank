@@ -22,6 +22,15 @@ const axios = require('axios');
 // Creamos la aplicación Express
 const app = express();
 
+// En Render (y en cualquier hosting) la app corre detras de un proxy: el pedido
+// llega con la IP del proxy y la del cliente real en el header X-Forwarded-For.
+// Sin esto req.ip devuelve siempre la misma IP, y el limitador de intentos
+// bloquearia a TODOS los usuarios cuando alguien falla 10 logins seguidos.
+// TRUST_PROXY=1 en produccion; vacio en local, donde no hay proxy que confiar.
+if (process.env.TRUST_PROXY) {
+    app.set('trust proxy', Number(process.env.TRUST_PROXY));
+}
+
 // ---- Importamos las rutas de cada módulo ----
 // Cada archivo de rutas define qué URLs existen y qué función las maneja
 const personaRoutes = require('./routes/personaRoutes'); // /api/personas, /api/transferencias, etc.
@@ -73,11 +82,20 @@ const origenesPermitidos = (process.env.CORS_ORIGINS || 'http://localhost:5173,h
     .map(o => o.trim())
     .filter(Boolean);
 
+// Un origen puede empezar con * para cubrir los dominios que cambian solos:
+// los deploy previews de Netlify llegan como https://<rama>--tree-bank.netlify.app,
+// asi que con "*--tree-bank.netlify.app" en CORS_ORIGINS quedan todos cubiertos
+// sin abrir la API a cualquier sitio.
+const terminacionesPermitidas = origenesPermitidos
+    .filter(o => o.startsWith('*'))
+    .map(o => o.slice(1));
+
 app.use(cors({
     origin: (origin, callback) => {
         // Sin header Origin (curl, Postman, healthchecks) se deja pasar:
         // el navegador es el unico que manda Origin y el unico al que hay que proteger
         if (!origin || origenesPermitidos.includes(origin)) return callback(null, true);
+        if (terminacionesPermitidas.some(fin => origin.endsWith(fin))) return callback(null, true);
         return callback(new Error('Origen no permitido por CORS'));
     }
 }));
@@ -125,6 +143,14 @@ app.use('/api', inversionRoutes);
 // email y el hash de contrasena de todos los clientes, y /api/tablas/cuentas_bancarias
 // el CBU y el saldo de cada cuenta del banco, a cualquiera sin login.
 app.get('/api/tablas/:tabla', verificarToken, verificarAdmin, tablaController.obtenerTabla);
+
+// ---- HEALTHCHECK ----
+// Ruta publica y barata que solo dice "estoy vivo". La usa Render para saber si
+// el deploy quedo sano, y sirve para el ping que mantiene despierta la instancia
+// gratuita (se duerme a los 15 minutos sin trafico y ahi se cortan los cron jobs).
+app.get('/health', (req, res) => {
+    res.json({ ok: true, servicio: 'tree-bank-api', uptime: Math.round(process.uptime()) });
+});
 
 // ---- MANEJO DE RUTAS INEXISTENTES (404) ----
 // Si alguien llama a una URL que no existe, respondemos con error 404

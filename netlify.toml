@@ -1,0 +1,25 @@
+# ============================================================
+# netlify.toml — CONFIGURACION DEL DEPLOY DEL FRONTEND
+# Va en la RAIZ del repo a proposito: Netlify busca el netlify.toml aca, y
+# desde aca apunta a la carpeta del front con base. Si estuviera adentro de
+# homebanking-front/ no lo encontraria y habria que cargar todo a mano.
+# No hay que tocar nada en el panel salvo VITE_API_URL (ver .env.example).
+# ============================================================
+
+[build]
+  # La carpeta del front dentro del repo: todo lo de abajo corre aca adentro
+  base    = "homebanking-front"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# La app usa BrowserRouter: las rutas como /transferencias existen solo en el
+# navegador, no como archivos. Sin esta regla, refrescar la pagina o entrar
+# directo por URL da 404, porque Netlify busca un archivo /transferencias.
+# Con esto, cualquier ruta devuelve index.html y React Router resuelve el resto.
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200

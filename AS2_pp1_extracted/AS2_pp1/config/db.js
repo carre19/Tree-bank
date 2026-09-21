@@ -12,6 +12,13 @@ const { Pool } = require('pg');
 // Cargamos las variables del .env (contraseña, usuario, etc.)
 require('dotenv').config();
 
+// En produccion (Render) la conexion viaja por internet hasta Supabase, asi que
+// tiene que ir cifrada con TLS. Se activa poniendo DB_SSL=true en las variables
+// de entorno. rejectUnauthorized:false porque el pooler de Supabase presenta un
+// certificado propio que Node no tiene en su lista de confianza.
+// Con un PostgreSQL local (docker-compose) se deja DB_SSL vacio o en false.
+const ssl = process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false;
+
 // Creamos el pool con los datos de conexión de Supabase
 // Todos estos valores vienen del archivo .env (nunca se hardcodean en el código)
 const pool = new Pool({
@@ -20,6 +27,7 @@ const pool = new Pool({
   database: process.env.DB_NAME,
   password: String(process.env.DB_PASSWORD), // String() porque a veces viene como número
   port:     process.env.DB_PORT,             // Supabase usa el puerto 6543
+  ssl,
 });
 
 // Exportamos el pool para que cualquier archivo pueda hacer:
