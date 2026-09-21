@@ -53,7 +53,7 @@ function enPeriodo(fechaMov, periodo, desde, hasta) {
 // Rueda de categorías al estilo Mercado Pago: un anillo armado con conic-gradient
 // (un color por categoría, proporcional a lo que representa del total) y el
 // total en el centro. Se usa una para gastos y otra para ingresos.
-function RuedaCategorias({ titulo, subtitulo, segmentos, total }) {
+function RuedaCategorias({ titulo, subtitulo, segmentos, total, simbolo }) {
   const gradiente = (() => {
     let acumulado = 0;
     const stops = segmentos.map((s) => {
@@ -79,7 +79,7 @@ function RuedaCategorias({ titulo, subtitulo, segmentos, total }) {
           <div className="wheel-wrap">
             <div className="wheel-ring" style={{ background: gradiente }} />
             <div className="wheel-hole">
-              <span className="wheel-hole-value">$ {fmtMonto(total)}</span>
+              <span className="wheel-hole-value">{simbolo} {fmtMonto(total)}</span>
               <span className="wheel-hole-label">Total</span>
             </div>
           </div>
@@ -90,7 +90,7 @@ function RuedaCategorias({ titulo, subtitulo, segmentos, total }) {
                 <Icon name={s.icon} size={14} />
                 <span className="wheel-legend-label">{s.label}</span>
                 <span className="wheel-legend-pct">{Math.round((s.total / total) * 100)}%</span>
-                <span className="wheel-legend-amount">$ {fmtMonto(s.total)}</span>
+                <span className="wheel-legend-amount">{simbolo} {fmtMonto(s.total)}</span>
               </div>
             ))}
           </div>
@@ -103,6 +103,8 @@ function RuedaCategorias({ titulo, subtitulo, segmentos, total }) {
 export default function HistorialPage() {
   const { usuario } = useAuth();
   const [movimientos, setMovimientos] = useState([]);
+  const [cuentas, setCuentas]         = useState({});
+  const [moneda, setMoneda]           = useState('ARS');
   const [cargando, setCargando]       = useState(true);
   const [filtro, setFiltro]           = useState('TODOS');
   const [periodo, setPeriodo]         = useState('todo');
@@ -111,27 +113,35 @@ export default function HistorialPage() {
   const { ganancia: gananciaInversiones } = useGananciaInversionesArs();
 
   useEffect(() => {
-    const cargar = async () => {
+    const cargarCuentas = async () => {
       try {
-        // El historial es siempre el de la caja en ARS (si tambien hay una en USD,
-        // hace falta filtrar por moneda y no solo tomar "el primer producto")
         // /productos ya viene con cbu, saldo y moneda de cada cuenta propia
         const productos = await api.get(`/personas/${usuario.id}/productos`);
-        const miCuenta = productos.data.find(
-          p => p.tipo === 'CAJA_AHORRO' && p.moneda === 'ARS' && p.cbu
-        );
-        if (!miCuenta) return;
-
-        const movRes = await api.get(`/movimientos/${miCuenta.id_cuenta}`);
-        setMovimientos(movRes.data);
+        const cajas = {};
+        for (const p of productos.data) {
+          if (p.tipo === 'CAJA_AHORRO' && p.cbu && (p.moneda === 'ARS' || p.moneda === 'USD')) cajas[p.moneda] = p;
+        }
+        setCuentas(cajas);
+        if (!cajas.ARS && cajas.USD) setMoneda('USD');
+        else if (!cajas.ARS) setCargando(false);
       } catch {
-        setMovimientos([]);
-      } finally {
         setCargando(false);
       }
     };
-    cargar();
+    cargarCuentas();
   }, [usuario]);
+
+  useEffect(() => {
+    const cuenta = cuentas[moneda];
+    if (!cuenta) return;
+    setCargando(true);
+    api.get(`/movimientos/${cuenta.id_cuenta}`)
+      .then((res) => setMovimientos(res.data))
+      .catch(() => setMovimientos([]))
+      .finally(() => setCargando(false));
+  }, [cuentas, moneda]);
+
+  const simbolo = moneda === 'USD' ? 'US$' : '$';
 
   const formatFecha = (fecha) => {
     const d = new Date(fecha);
@@ -191,6 +201,21 @@ export default function HistorialPage() {
         <p className="page-sub">Todo lo que entró y salió de tu cuenta, catalogado por tipo de gasto.</p>
       </div>
 
+      {/* Moneda: solo si hay caja en ARS y en USD */}
+      {cuentas.ARS && cuentas.USD && (
+        <div className="chips anim-up-1">
+          {['ARS', 'USD'].map((m) => (
+            <button
+              key={m}
+              className={`chip${moneda === m ? ' active' : ''}`}
+              onClick={() => { setMoneda(m); setFiltro('TODOS'); }}
+            >
+              {m === 'ARS' ? 'Pesos (ARS)' : 'Dólares (USD)'}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Período: día, semana, mes, todo o un rango de fechas a elección */}
       <div className="chips anim-up-1">
         {PERIODOS.map((p) => (
@@ -224,7 +249,7 @@ export default function HistorialPage() {
           </div>
           <div>
             <p className="stat-label">Total recibido</p>
-            <p className="stat-value" style={{ color: 'var(--ok)' }}>+$ {fmt(totalIngresos)}</p>
+            <p className="stat-value" style={{ color: 'var(--ok)' }}>+{simbolo} {fmt(totalIngresos)}</p>
           </div>
         </div>
         <div className="stat-card">
@@ -233,7 +258,7 @@ export default function HistorialPage() {
           </div>
           <div>
             <p className="stat-label">Total gastado</p>
-            <p className="stat-value" style={{ color: 'var(--red)' }}>-$ {fmt(totalEgresos)}</p>
+            <p className="stat-value" style={{ color: 'var(--red)' }}>-{simbolo} {fmt(totalEgresos)}</p>
           </div>
         </div>
         <div className="stat-card">
@@ -255,12 +280,14 @@ export default function HistorialPage() {
             subtitulo="En qué se fue la plata"
             segmentos={gastosPorCategoria}
             total={totalGastosCategorizados}
+            simbolo={simbolo}
           />
           <RuedaCategorias
             titulo="Ingresos"
             subtitulo="De dónde vino la plata"
             segmentos={ingresosPorCategoria}
             total={totalIngresosCategorizados}
+            simbolo={simbolo}
           />
         </div>
       )}
@@ -287,7 +314,7 @@ export default function HistorialPage() {
                   </div>
                   <div className="tx-right">
                     <p className={`tx-amount ${dir === 'warn' ? '' : dir}`} style={dir === 'warn' ? { color: 'var(--warn)' } : undefined}>
-                      {info.signo === 'in' ? '+' : info.signo === 'out' ? '-' : ''}$ {fmt(mov.monto)}
+                      {info.signo === 'in' ? '+' : info.signo === 'out' ? '-' : ''}{simbolo} {fmt(mov.monto)}
                     </p>
                   </div>
                 </div>
@@ -316,7 +343,7 @@ export default function HistorialPage() {
                       height: `${Math.max(3, (porDia[dia].in / maxValor) * 100)}%`,
                       animationDelay: `${i * 0.07}s`,
                     }}
-                    title={`Ingresos ${labelDia(dia)}: $ ${fmt(porDia[dia].in)}`}
+                    title={`Ingresos ${labelDia(dia)}: ${simbolo} ${fmt(porDia[dia].in)}`}
                   />
                   <div
                     className="chart-bar out"
@@ -324,7 +351,7 @@ export default function HistorialPage() {
                       height: `${Math.max(3, (porDia[dia].out / maxValor) * 100)}%`,
                       animationDelay: `${i * 0.07 + 0.03}s`,
                     }}
-                    title={`Egresos ${labelDia(dia)}: $ ${fmt(porDia[dia].out)}`}
+                    title={`Egresos ${labelDia(dia)}: ${simbolo} ${fmt(porDia[dia].out)}`}
                   />
                 </div>
                 <span className="chart-date">{labelDia(dia)}</span>
@@ -361,7 +388,7 @@ export default function HistorialPage() {
       {/* Ganancia no realizada de inversiones: no es un movimiento real (no
           se acredito ni debito nada), por eso va aparte de la lista filtrada
           por periodo/categoria y se actualiza sola en vivo */}
-      {gananciaInversiones != null && (
+      {moneda === 'ARS' && gananciaInversiones != null && (
         <div className="card anim-up-2" style={{ marginBottom: 10 }}>
           <GananciaInversionesItem ganancia={gananciaInversiones} />
         </div>
@@ -400,7 +427,7 @@ export default function HistorialPage() {
               </div>
               <div className="tx-right">
                 <p className={`tx-amount ${dir === 'warn' ? '' : dir}`} style={dir === 'warn' ? { color: 'var(--warn)' } : undefined}>
-                  {info.signo === 'in' ? '+' : info.signo === 'out' ? '-' : ''}$ {fmt(mov.monto)}
+                  {info.signo === 'in' ? '+' : info.signo === 'out' ? '-' : ''}{simbolo} {fmt(mov.monto)}
                 </p>
                 <span className={`tx-badge ${dir}`}>{info.categoriaLabel}</span>
               </div>
