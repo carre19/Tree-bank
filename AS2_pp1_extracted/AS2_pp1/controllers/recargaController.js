@@ -53,12 +53,20 @@ exports.recargar = async (req, res) => {
         const client = await db.connect();
         try {
             await client.query('BEGIN');
-            await Persona.descontarSaldo(cuenta.cbu, monto, client);
-            await Persona.registrarMovimiento({
+            const saldo_posterior = await Persona.descontarSaldo(cuenta.cbu, monto, client);
+            const id_movimiento = await Persona.registrarMovimiento({
                 id_cuenta: cuenta.id_cuenta,
                 tipo_movimiento: 'RECARGA_CELULAR',
                 monto,
                 descripcion: `Recarga ${empresa} · ${numero_celular}`,
+            }, client);
+            await Recarga.registrarRecarga({
+                id_cuenta: cuenta.id_cuenta,
+                id_movimiento,
+                operador,
+                numero_celular,
+                monto,
+                saldo_posterior,
             }, client);
             await client.query('COMMIT');
         } catch (e) {

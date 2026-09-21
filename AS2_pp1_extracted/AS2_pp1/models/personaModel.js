@@ -118,13 +118,14 @@ const Persona = {
   // "client" es opcional: si el caller esta dentro de una transaccion (ver mas abajo,
   // p. ej. realizarTransferencia) pasa su propio client; si no, usa el pool normal.
   descontarSaldo: async (cbu, monto, client = db) => {
-    const { rowCount } = await client.query(
-      'UPDATE cuentas_bancarias SET saldo = saldo - $1 WHERE cbu = $2 AND saldo >= $1',
+    const { rowCount, rows } = await client.query(
+      'UPDATE cuentas_bancarias SET saldo = saldo - $1 WHERE cbu = $2 AND saldo >= $1 RETURNING saldo',
       [monto, cbu]
     );
     if (rowCount === 0) {
       throw new Error('Saldo insuficiente para completar la operacion');
     }
+    return rows[0].saldo;
   },
 
   // Suma monto al saldo de una cuenta (se usa al recibir transferencia o depósito)
@@ -148,12 +149,14 @@ const Persona = {
   // (a proposito NO se llenan en depositos: no tienen contraparte real).
   registrarMovimiento: async (datos, client = db) => {
     const { id_cuenta, tipo_movimiento, monto, descripcion, cbu_contraparte, nombre_contraparte } = datos;
-    await client.query(
+    const { rows } = await client.query(
       `INSERT INTO movimientos (id_cuenta, tipo_movimiento, monto, descripcion, cbu_contraparte, nombre_contraparte, fecha)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+       RETURNING id_movimiento`,
       [id_cuenta, tipo_movimiento, monto, descripcion, cbu_contraparte || null, nombre_contraparte || null]
       // NOW() = fecha y hora actual del servidor
     );
+    return rows[0].id_movimiento;
   },
 
   // Devuelve los contactos de una persona: el CBU y nombre de cada contraparte con la que
