@@ -116,6 +116,12 @@
   --auth-blob-1: rgba(52, 180, 133, 0.24);
   --auth-blob-2: rgba(150, 130, 90, 0.24);
 
+  /* Splash del resto de la app: mismo origen que los auth-blob, pero más
+     saturados porque acá compiten con un fondo liso (no con el degradé
+     oscuro del login) y quedarían invisibles con la misma intensidad. */
+  --app-blob-1: rgba(16, 150, 110, 0.55);
+  --app-blob-2: rgba(150, 110, 60, 0.5);
+
   /* Estados semánticos */
   --ok:          #0d5740;
   --ok-bg:       rgba(16, 150, 110, 0.14);
@@ -192,6 +198,9 @@
   --auth-ink-2: rgba(232, 247, 238, 0.62);
   --auth-blob-1: rgba(52, 211, 153, 0.26);
   --auth-blob-2: rgba(13, 148, 136, 0.28);
+
+  --app-blob-1: rgba(52, 211, 153, 0.4);
+  --app-blob-2: rgba(13, 148, 136, 0.45);
 
   --ok:          #5eead4;
   --ok-bg:       rgba(94, 234, 212, 0.13);
@@ -394,8 +403,22 @@ body, .card, .tx-item, .stat-card, .row-card, .input, .amount-box, .chip,
   margin-left: var(--sidebar-w);
   padding: 34px clamp(20px, 4vw, 56px) 64px;
   width: calc(100% - var(--sidebar-w));
+  position: relative;
 }
-.main-content > * { max-width: var(--content-max); margin-inline: auto; }
+.main-content > :not(.app-blob) { max-width: var(--content-max); margin-inline: auto; }
+
+/* Splash decorativo (mismo del login): anclado al área de contenido (no al
+   viewport) para que se vea detrás del título en toda pantalla, y con
+   z-index negativo para quedar detrás de las cards sin taparlas. */
+.app-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+  z-index: -1;
+}
+.app-blob.b1 { width: 420px; height: 420px; background: var(--app-blob-1); top: -120px; right: -80px; }
+.app-blob.b2 { width: 340px; height: 340px; background: var(--app-blob-2); top: 160px; left: -100px; }
 
 .page-title {
   font-family: var(--font-display);
@@ -1014,6 +1037,27 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   box-shadow: 0 8px 18px -12px rgba(5, 150, 105, 0.8);
 }
 .chip:active { transform: scale(0.96); }
+
+/* Chip con insignia de marca (operadores de recarga) */
+.chip-op { display: inline-flex; align-items: center; gap: 8px; padding-left: 10px; }
+.op-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  flex-shrink: 0;
+}
+.op-movistar { background: #00a9e0; }
+.op-personal { background: #009fe3; }
+.op-claro    { background: #e2231a; }
+.chip-op.active .op-badge { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35), 0 0 0 2px rgba(255, 255, 255, 0.22); }
 
 /* Movimientos */
 .tx-item {

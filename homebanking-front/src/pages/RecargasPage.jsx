@@ -5,37 +5,21 @@ import api from '../api/api';
 
 const fmt = (v) => Number(v).toLocaleString('es-AR', { minimumFractionDigits: 2 });
 
-// Insignia de marca por operador (color + inicial), estilo consistente con
-// el resto de los íconos de la app. No son los logos oficiales de cada
-// empresa, sino una referencia visual rápida para identificarlos.
+// Insignia de marca por operador (inicial sobre el color de marca), estilo
+// consistente con el resto de los íconos de la app. No son los logos
+// oficiales de cada empresa, sino una referencia visual rápida para
+// identificarlos — el color y la letra hacen el trabajo de reconocimiento.
 const MARCAS = {
-  MOVISTAR: { color: '#019DF4', letra: 'M' },
-  PERSONAL: { color: '#00AEEF', letra: 'P' },
-  CLARO:    { color: '#DA291C', letra: 'C' },
+  MOVISTAR: { letra: 'M' },
+  PERSONAL: { letra: 'P' },
+  CLARO:    { letra: 'C' },
 };
 
-function LogoOperador({ opKey, size = 18 }) {
+function LogoOperador({ opKey }) {
   const marca = MARCAS[opKey];
   if (!marca) return null;
   return (
-    <span
-      aria-hidden="true"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: size,
-        height: size,
-        borderRadius: '50%',
-        background: marca.color,
-        color: '#fff',
-        fontSize: size * 0.55,
-        fontWeight: 700,
-        lineHeight: 1,
-        marginRight: 6,
-        verticalAlign: -4,
-      }}
-    >
+    <span className={`op-badge op-${opKey.toLowerCase()}`} aria-hidden="true">
       {marca.letra}
     </span>
   );
@@ -115,7 +99,7 @@ export default function RecargasPage() {
                   <button
                     type="button"
                     key={op.key}
-                    className={`chip${operador === op.key ? ' active' : ''}`}
+                    className={`chip chip-op${operador === op.key ? ' active' : ''}`}
                     onClick={() => { setOperador(op.key); setResultado(null); }}
                   >
                     <LogoOperador opKey={op.key} />

@@ -124,7 +124,12 @@ export default function AppLayout({ children }) {
           </div>
         </header>
 
-        <main className="main-content">{children}</main>
+        <main className="main-content">
+          {/* Splash decorativo (mismo de LoginPage), anclado al área de contenido */}
+          <div className="app-blob b1" />
+          <div className="app-blob b2" />
+          {children}
+        </main>
       </div>
 
       {/* ── Bottom nav (mobile) ── */}
