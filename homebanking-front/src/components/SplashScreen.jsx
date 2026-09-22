@@ -1,9 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 
-// Splash de bienvenida post-login: los árboles de Tree Bank "crecen"
-// y la pantalla se funde hacia el dashboard.
-export default function SplashScreen({ nombre, onFin }) {
+// Splash de bienvenida: los árboles de Tree Bank "crecen" y la pantalla se
+// funde hacia el dashboard.
+//
+//   'ingreso'    → alguien acaba de loguearse: se lo saluda por el nombre.
+//   'reapertura' → volvió a abrir la app con la sesión guardada. Mismo splash
+//                  sin el saludo, porque no está entrando de nuevo.
+//
+// Las duraciones salen de la animación de index.css: el subtítulo termina de
+// entrar a los 1.95s y el saludo a los 2.25s. Cortar antes dejaría el último
+// texto a mitad de camino, así que cada modo espera a que termine lo suyo y
+// recién ahí arranca el fundido de salida.
+const VISIBLE_MS = { ingreso: 2500, reapertura: 2000 };
+const SALIDA_MS = 600; // tiene que coincidir con la transition de .splash
+
+export default function SplashScreen({ modo = 'ingreso', nombre, onFin }) {
   const [saliendo, setSaliendo] = useState(false);
+  const saluda = modo === 'ingreso' && Boolean(nombre);
 
   // App.jsx pasa onFin como una arrow function inline, asi que es una
   // referencia nueva en cada render del padre (p. ej. cuando AuthContext
@@ -14,10 +27,11 @@ export default function SplashScreen({ nombre, onFin }) {
   useEffect(() => { onFinRef.current = onFin; }, [onFin]);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setSaliendo(true), 2500);
-    const t2 = setTimeout(() => onFinRef.current(), 3100);
+    const visible = VISIBLE_MS[modo] ?? VISIBLE_MS.ingreso;
+    const t1 = setTimeout(() => setSaliendo(true), visible);
+    const t2 = setTimeout(() => onFinRef.current(), visible + SALIDA_MS);
     return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, []);
+  }, [modo]);
 
   return (
     <div className={`splash${saliendo ? ' splash-out' : ''}`}>
@@ -63,7 +77,7 @@ export default function SplashScreen({ nombre, onFin }) {
 
         <h1 className="splash-title">TREE BANK</h1>
         <p className="splash-sub">Tu banco, tu naturaleza.</p>
-        {nombre && <p className="splash-hola">Hola, {nombre}</p>}
+        {saluda && <p className="splash-hola">Hola, {nombre}</p>}
       </div>
     </div>
   );

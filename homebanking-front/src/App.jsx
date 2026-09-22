@@ -64,8 +64,8 @@ function AppRoutes() {
   const inicio = usuario ? (usuario.esAdmin ? '/admin' : '/dashboard') : '/login';
   return (
     <>
-      {/* Splash de bienvenida al ingresar */}
-      {splash && <SplashScreen nombre={usuario?.nombre} onFin={() => setSplash(false)} />}
+      {/* Splash de bienvenida: al ingresar y al volver a abrir la app */}
+      {splash && <SplashScreen modo={splash} nombre={usuario?.nombre} onFin={() => setSplash(false)} />}
 
       <Routes>
         <Route path="/" element={<Navigate to={inicio} />} />
